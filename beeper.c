@@ -14,10 +14,10 @@ Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255};
 Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128};
 int SECOND = 1;
 
-enum { false, true} bool;
+// enum { false, true} bool;
 
 typedef struct {
-	bool cpy_paste;
+	// bool cpy_paste;
 	double timer;
 	char *msg;
 	size_t msg_len;
@@ -42,12 +42,16 @@ void carve(char *dest, char *src, size_t carve) {
 void wrap_msg(char *wrapped_msg, Beep bp) {
 	int j=0;
 	for (int i=0, offset=0;i<bp.msg_len; ++i, ++j) {
-		char tmp[bp.msg_len+1];
-		carve(tmp, bp.msg+offset, i+1);
+		// char tmp[bp.msg_len+1];
+		// carve(tmp, bp.msg+offset, i+1);
+		char tmp[2];
+		tmp[1] = '\0';
+		tmp[0] = bp.msg[i];
+		offset += MeasureText(tmp, FONT_SIZE);
 		// printf("%d %d\n", MeasureText(tmp, FONT_SIZE), W_WIDTH);
-		if (MeasureText(tmp, FONT_SIZE)>W_WIDTH) {
+		if (offset>W_WIDTH) {
 			wrapped_msg[j] = '\n';
-			offset=i;
+			offset=0;
 			++j;
 		}
 		wrapped_msg[j] = bp.msg[i];
@@ -118,6 +122,6 @@ void beep(Beep bp) {
 }
 
 int main(int argc, char **argv) {
-	Beep bp = {.timer = 0, .msg = "New video from X:\n\thttps://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
+	Beep bp = {.timer = 0, .msg = "https://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
 	beep(bp);
 }
