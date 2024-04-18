@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "raylib.h"
 
@@ -7,12 +8,16 @@
 #define T_MAG W_HEIGHT/3
 #define M_HEIGHT GetMonitorHeight(0)
 #define M_WIDTH GetMonitorWidth(0)
-#define FONT_SIZE 16
+#define FONT_SIZE 13
 
 Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255};
 Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128};
+int SECOND = 1;
+
+enum { false, true} bool;
 
 typedef struct {
+	bool cpy_paste;
 	double timer;
 	char *msg;
 	size_t msg_len;
@@ -50,7 +55,17 @@ void wrap_msg(char *wrapped_msg, Beep bp) {
 	wrapped_msg[j] = '\0';
 }
 
-void _beep(Beep bp) {
+// MAYBE: slightly hacky to get copy pasting after closing notification for x seconds
+void copy_paste_buffer_time(int buf_time) {
+	SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
+	int buffer_time_start = GetTime();
+	while (GetTime()-buffer_time_start < buf_time) {
+		BeginDrawing();
+		EndDrawing();
+	}
+}
+
+void beep(Beep bp) {
 	bp.msg_len = my_strlen((const char *)bp.msg);
 	bp.msg_pxls = bp.msg_len*sizeof(char);
 
@@ -66,26 +81,23 @@ void _beep(Beep bp) {
 	ClearBackground(BG_COLOR);
 
 	double prev_time = GetTime();
-	double new_time = GetTime();
 
 	while (!WindowShouldClose()) {
-
 		BeginDrawing();
+		SetClipboardText(bp.msg);
+
 		// wrap text
 		char wrapped_msg[bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1];
 		wrap_msg(wrapped_msg, bp);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
-
 		// copy-paste the beep contexts
-		// FIXME: only keeps it in clipboard while the beep still exists
-		if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_C)) {
-			SetClipboardText(bp.msg);
-		}
+		// if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_C)) {
+			
+		// }
 
 		// timer on beep
-		new_time = GetTime();
-		if (bp.timer && new_time-prev_time >= bp.timer) {
+		if (bp.timer && GetTime()-prev_time >= bp.timer) {
 			break;
 		}
 
@@ -94,14 +106,18 @@ void _beep(Beep bp) {
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
+			SetClipboardText(bp.msg);
 			break;
 		}
 		EndDrawing();
 	}
+	SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
+	copy_paste_buffer_time(5*SECOND);
+
 	CloseWindow();
 }
 
 int main(int argc, char **argv) {
-	Beep bp = {.timer = 0, .msg = "https://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
-	_beep(bp);
+	Beep bp = {.timer = 0, .msg = "New video from X:\n\thttps://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
+	beep(bp);
 }
