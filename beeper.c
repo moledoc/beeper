@@ -4,45 +4,93 @@
 
 #define W_HEIGHT 75
 #define W_WIDTH W_HEIGHT*4
-#define S_HEIGHT GetScreenHeight()
-#define S_WIDTH GetScreenWidth()
-#define FONT_SIZE 11
+#define T_MAG W_HEIGHT/3
+#define M_HEIGHT GetMonitorHeight(0)
+#define M_WIDTH GetMonitorWidth(0)
+#define FONT_SIZE 16
 
-double timer = 0; // 1.5; // TODO: add flags/etc that control this variable
+Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255};
+Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128};
 
-int main(int argc, char **argv) {
+typedef struct {
+	double timer;
+	char *msg;
+	size_t msg_len;
+	size_t msg_pxls;
+} Beep;
+
+size_t my_strlen(const char *s) {
+	size_t len = 0;
+	for (;s[len] != '\0';++len) {
+		;
+	}
+	return len;
+}
+
+void carve(char *dest, char *src, size_t carve) {
+	for (int i=0; i<carve; ++i) {
+		dest[i] = src[i];
+	}
+	dest[carve] = '\0';
+}
+
+void wrap_msg(char *wrapped_msg, Beep bp) {
+	int j=0;
+	for (int i=0, offset=0;i<bp.msg_len; ++i, ++j) {
+		char tmp[bp.msg_len+1];
+		carve(tmp, bp.msg+offset, i+1);
+		// printf("%d %d\n", MeasureText(tmp, FONT_SIZE), W_WIDTH);
+		if (MeasureText(tmp, FONT_SIZE)>W_WIDTH) {
+			wrapped_msg[j] = '\n';
+			offset=i;
+			++j;
+		}
+		wrapped_msg[j] = bp.msg[i];
+	}
+	wrapped_msg[j] = '\0';
+}
+
+void _beep(Beep bp) {
+	bp.msg_len = my_strlen((const char *)bp.msg);
+	bp.msg_pxls = bp.msg_len*sizeof(char);
+
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
-	// SetWindowPosition(S_WIDTH/2, S_HEIGHT/2);
-	SetWindowPosition(20, 20);
-	ClearBackground(ORANGE);
+
 	SetTargetFPS(60);
-	SetExitKey(KEY_Q);
 	SetWindowState(FLAG_WINDOW_UNDECORATED);
+	SetExitKey(KEY_Q);
+	SetWindowMonitor(0);
+	SetWindowPosition(M_WIDTH/10-W_WIDTH/2, M_HEIGHT/10-W_HEIGHT/2);
+	SetTextLineSpacing(FONT_SIZE);
+
+	ClearBackground(BG_COLOR);
 
 	double prev_time = GetTime();
 	double new_time = GetTime();
 
 	while (!WindowShouldClose()) {
+
 		BeginDrawing();
-		char *msg = "notification message";
-		DrawText(msg, W_WIDTH/10, W_HEIGHT/4, FONT_SIZE, BLACK);
+		// wrap text
+		char wrapped_msg[bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1];
+		wrap_msg(wrapped_msg, bp);
+		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
 
 		// copy-paste the beep contexts
 		// FIXME: only keeps it in clipboard while the beep still exists
 		if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_C)) {
-			SetClipboardText(msg);
+			SetClipboardText(bp.msg);
 		}
 
 		// timer on beep
 		new_time = GetTime();
-		if (timer && new_time-prev_time >= timer) {
+		if (bp.timer && new_time-prev_time >= bp.timer) {
 			break;
 		}
 
 		// manually acknowledge beep
 		Vector2 mouse_pos = GetMousePosition();
-		// printf("%f %f -- %f %f\n", win_pos.x, win_pos.y, mouse_pos.x, mouse_pos.y);
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
@@ -51,4 +99,9 @@ int main(int argc, char **argv) {
 		EndDrawing();
 	}
 	CloseWindow();
+}
+
+int main(int argc, char **argv) {
+	Beep bp = {.timer = 0, .msg = "https://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
+	_beep(bp);
 }
