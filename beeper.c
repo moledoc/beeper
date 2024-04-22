@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "raylib.h"
 #include "beep.h"
@@ -24,7 +26,7 @@ size_t my_strlen(const char *s) {
 	return len;
 }
 
-void wrap_msg(char *wrapped_msg, Beep bp) {
+void wrap_msg(Beep bp, char *wrapped_msg) {
 	int j=0;
 	for (int i=0, offset=0;i<bp.msg_len; ++i, ++j) {
 		char tmp[2];
@@ -59,6 +61,7 @@ void beep(Beep bp) {
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
 
 	SetTargetFPS(60);
+	ClearWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
 	SetWindowState(FLAG_WINDOW_UNDECORATED);
 	SetExitKey(KEY_Q);
 	SetWindowMonitor(0);
@@ -70,7 +73,6 @@ void beep(Beep bp) {
 	double prev_time = GetTime();
 
 	int is_copy_paste = 0;
-	int is_repeat = 0;
 
 	while (!WindowShouldClose()) {
 		BeginDrawing();
@@ -78,11 +80,12 @@ void beep(Beep bp) {
 
 		// wrap text
 		char wrapped_msg[bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1];
-		wrap_msg(wrapped_msg, bp);
+		wrap_msg(bp, wrapped_msg);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
 		// timer on beep
 		if (bp.timer && GetTime()-prev_time >= bp.timer) {
+			queue = q_push(queue, bp);
 			break;
 		}
 
@@ -101,7 +104,7 @@ void beep(Beep bp) {
 		} else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
-			is_repeat = 1;
+			queue = q_push(queue, bp);
 			break;
 		}
 		EndDrawing();
@@ -110,23 +113,24 @@ void beep(Beep bp) {
 	if (is_copy_paste) {
 		copy_paste_buffer_time(5*SECOND);
 	}
-	if (is_repeat) {
-		printf("TODO:\n");
-	}
-
 	CloseWindow();
 }
 
-int main(int argc, char **argv) {
+void *watcher(void *_) {
 	Beep bp = {.timer = 0, .msg = "https://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
-	// beep(bp);
 	queue = q_push(queue, bp);
-	queue = q_push(queue, bp);
-	queue = q_push(queue, bp);
-	queue = q_push(queue, bp);
-	queue = q_push(queue, bp);
+	for (; queue != NULL;) {
+		queue = q_pop(queue, &bp);
+		beep(bp);
+		sleep(1);
+	}
+}
 
-	queue = q_pop(queue);
-	q_print(queue);
+int main(int argc, char **argv) {
+
+	pthread_t watch_thread;
+	int pret = pthread_create(&watch_thread, NULL, watcher, NULL);
+	pthread_join(watch_thread, NULL);
+
 	q_free(queue);
 }

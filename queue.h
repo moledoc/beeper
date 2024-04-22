@@ -10,7 +10,7 @@ typedef struct Queue {
 } Queue;
 
 Queue *q_push(Queue *queue, Beep new_beep);
-Queue *q_pop(Queue *queue);
+Queue *q_pop(Queue *queue, Beep *bp);
 void q_print(Queue *queue);
 void q_free(Queue *queue);
 
@@ -28,11 +28,12 @@ Queue *q_push(Queue *q, Beep new_bp) {
 	return q;
 }
 
-Queue *q_pop(Queue *q) {
+Queue *q_pop(Queue *q, Beep *bp) {
 	if (q == NULL) {
 		return NULL;
 	}
 	Queue *nq = q->next;
+	(*bp) = q->bp;
 	free(q);
 	return nq;
 }

@@ -10,7 +10,6 @@ typedef struct {
 	char *msg;
 	size_t msg_len;
 	size_t msg_pxls;
-	bool repeat;
 } Beep;
 
 char *beep_string(Beep bp);
@@ -21,7 +20,7 @@ char *beep_string(Beep bp) {
 	if (str == NULL) {
 		return NULL;
 	}
-	snprintf(str, 1024, "{.timer=%0.1f, .repeat=%d, .msg_len=%lu, .msg_pxls=%lu, .msg=%s}", bp.timer, bp.repeat, (unsigned long)bp.msg_len, (unsigned long)bp.msg_pxls, bp.msg);
+	snprintf(str, 1024, "{.timer=%0.1f, .msg_len=%lu, .msg_pxls=%lu, .msg=%s}", bp.timer, (unsigned long)bp.msg_len, (unsigned long)bp.msg_pxls, bp.msg);
 	return str;
 }
 	
