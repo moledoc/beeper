@@ -7,10 +7,10 @@
 #include "queue.h"
 
 #define W_HEIGHT 75
-#define W_WIDTH W_HEIGHT*4
-#define T_MAG W_HEIGHT/3
-#define M_HEIGHT GetMonitorHeight(0)
-#define M_WIDTH GetMonitorWidth(0)
+#define W_WIDTH (W_HEIGHT*4)
+#define T_MAG (W_HEIGHT/3)
+#define M_HEIGHT (GetMonitorHeight(0))
+#define M_WIDTH (GetMonitorWidth(0))
 #define FONT_SIZE 13
 
 Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255};
@@ -26,22 +26,30 @@ size_t my_strlen(const char *s) {
 	return len;
 }
 
-void wrap_msg(Beep bp, char *wrapped_msg) {
-	int j=0;
-	for (int i=0, offset=0;i<bp.msg_len; ++i, ++j) {
-		char tmp[2];
-		tmp[1] = '\0';
-		tmp[0] = bp.msg[i];
-		offset += MeasureText(tmp, FONT_SIZE);
-		// printf("%d %d\n", MeasureText(tmp, FONT_SIZE), W_WIDTH);
-		if (offset>W_WIDTH) {
-			wrapped_msg[j] = '\n';
-			offset=0;
-			++j;
-		}
-		wrapped_msg[j] = bp.msg[i];
+void my_memset(char *dest, char v, size_t len) {
+	for (int i=0; i<len; ++i) {
+		dest[i]=v;
 	}
-	wrapped_msg[j] = '\0';
+}
+
+void my_memcpy(char *dest, char *src, size_t len) {
+	for (int i=0; i<len; ++i) {
+		dest[i] = src[i];
+	}
+}
+
+
+void wrap_msg(Beep bp, char *wrapped_msg) {
+	int measured_text = MeasureText(bp.msg, FONT_SIZE);
+	int newline_count = measured_text/W_WIDTH;
+	double avg_char_size = (double)measured_text/(double)bp.msg_len;
+	int line_char_count = W_WIDTH/avg_char_size;
+	for (int i=0; i<newline_count; ++i) {
+		wrapped_msg[(i+1)*line_char_count+i] = '\n';
+		my_memcpy(wrapped_msg+(i*line_char_count)+i, bp.msg+(i*line_char_count), line_char_count);
+	}
+	my_memcpy(wrapped_msg+(newline_count*line_char_count)+newline_count, bp.msg+(newline_count*line_char_count), bp.msg_len-(newline_count*line_char_count));
+	
 }
 
 // NOTE: maybe slightly hacky to get copy pasting after closing notification for x seconds
@@ -56,7 +64,6 @@ void copy_paste_buffer_time(int buf_time) {
 
 void beep(Beep bp) {
 	bp.msg_len = my_strlen((const char *)bp.msg);
-	bp.msg_pxls = bp.msg_len*sizeof(char);
 
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
 
@@ -79,7 +86,9 @@ void beep(Beep bp) {
 		SetClipboardText(bp.msg);
 
 		// wrap text
-		char wrapped_msg[bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1];
+		size_t wrapped_msg_len = bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1+1;
+		char wrapped_msg[wrapped_msg_len+1];
+		my_memset(wrapped_msg, '\0', wrapped_msg_len);
 		wrap_msg(bp, wrapped_msg);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
@@ -116,8 +125,8 @@ void beep(Beep bp) {
 	CloseWindow();
 }
 
-void *watcher(void *_) {
-	Beep bp = {.timer = 0, .msg = "https://www.youtube.com/watch?v=rTb6NFKUmQU&list=WL&index=5"};
+void *pager(void *_) {
+	Beep bp = {.timer = 0, .msg = "this is a really long long long long long long long long long long long messagethis is a really long long long long long long long long long long long message"};
 	queue = q_push(queue, bp);
 	for (; queue != NULL;) {
 		queue = q_pop(queue, &bp);
@@ -129,7 +138,7 @@ void *watcher(void *_) {
 int main(int argc, char **argv) {
 
 	pthread_t watch_thread;
-	int pret = pthread_create(&watch_thread, NULL, watcher, NULL);
+	int pret = pthread_create(&watch_thread, NULL, pager, NULL);
 	pthread_join(watch_thread, NULL);
 
 	q_free(queue);
