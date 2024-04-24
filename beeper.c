@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "raylib.h"
 #include "beep.h"
@@ -18,6 +19,9 @@ int SECOND = 1;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 Broot broot = {.bueue = NULL};
+
+pthread_mutex_t graceful_mutex = PTHREAD_MUTEX_INITIALIZER;
+bool shutting_down = false;
 
 size_t my_strlen(const char *s) {
 	size_t len = 0;
@@ -124,6 +128,15 @@ void beep(Beep bp) {
 	pthread_mutex_unlock(&mutex);
 }
 
+bool graceful_shutdown(bool shutdown) {
+	pthread_mutex_lock(&graceful_mutex);
+	if (shutdown) {
+		shutting_down = shutdown;
+	}
+	pthread_mutex_unlock(&graceful_mutex);
+	return shutting_down;
+}
+
 void *pager(void *_) {
 	Beep bp = {.timer = 0, .msg = "this is a really long long long long long long long long long long long messagethis is a really long long long long long long long long long long long message"};
 	broot.bueue = bpq_push(broot.bueue, bp);
@@ -131,14 +144,25 @@ void *pager(void *_) {
 		broot.bueue = bpq_pop(broot.bueue, &bp);
 		beep(bp);
 		sleep(1);
+		if (graceful_shutdown(false)) {
+			break;
+		}
 	}
+	graceful_shutdown(true);
 	return 0;
 }
 
 void *sock_listener(void *_) {
 	// TODO: listen to socket
 	// TODO: implement encoding and it's parsing
-	sleep(2);
+	for (;;) {
+		sleep(2);
+		if (graceful_shutdown(false)) {
+			break;
+		}
+		printf("HERE\n");
+	}
+	graceful_shutdown(true);
 	return 0;
 }
 
