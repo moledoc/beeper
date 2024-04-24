@@ -4,7 +4,6 @@
 
 #include "raylib.h"
 #include "beep.h"
-#include "queue.h"
 
 #define W_HEIGHT 75
 #define W_WIDTH (W_HEIGHT*4)
@@ -13,10 +12,12 @@
 #define M_WIDTH (GetMonitorWidth(0))
 #define FONT_SIZE 13
 
-Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255};
-Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128};
+Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255}; // very pale yellow
+Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128}; // black
 int SECOND = 1;
-Queue *queue = NULL;
+
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+Broot broot = {.bueue = NULL};
 
 size_t my_strlen(const char *s) {
 	size_t len = 0;
@@ -63,10 +64,10 @@ void copy_paste_buffer_time(int buf_time) {
 }
 
 void beep(Beep bp) {
+	pthread_mutex_lock(&mutex);
 	bp.msg_len = my_strlen((const char *)bp.msg);
 
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
-
 	SetTargetFPS(60);
 	ClearWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
 	SetWindowState(FLAG_WINDOW_UNDECORATED);
@@ -85,20 +86,17 @@ void beep(Beep bp) {
 		BeginDrawing();
 		SetClipboardText(bp.msg);
 
-		// wrap text
 		size_t wrapped_msg_len = bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1+1;
 		char wrapped_msg[wrapped_msg_len+1];
 		my_memset(wrapped_msg, '\0', wrapped_msg_len);
 		wrap_msg(bp, wrapped_msg);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
-		// timer on beep
 		if (bp.timer && GetTime()-prev_time >= bp.timer) {
-			queue = q_push(queue, bp);
+			broot.bueue = bpq_push(broot.bueue, bp);
 			break;
 		}
 
-		// manually acknowledge beep
 		Vector2 mouse_pos = GetMousePosition();
 		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
@@ -113,7 +111,7 @@ void beep(Beep bp) {
 		} else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
-			queue = q_push(queue, bp);
+			broot.bueue = bpq_push(broot.bueue, bp);
 			break;
 		}
 		EndDrawing();
@@ -123,23 +121,38 @@ void beep(Beep bp) {
 		copy_paste_buffer_time(5*SECOND);
 	}
 	CloseWindow();
+	pthread_mutex_unlock(&mutex);
 }
 
 void *pager(void *_) {
 	Beep bp = {.timer = 0, .msg = "this is a really long long long long long long long long long long long messagethis is a really long long long long long long long long long long long message"};
-	queue = q_push(queue, bp);
-	for (; queue != NULL;) {
-		queue = q_pop(queue, &bp);
+	broot.bueue = bpq_push(broot.bueue, bp);
+	for (; broot.bueue != NULL;) {
+		broot.bueue = bpq_pop(broot.bueue, &bp);
 		beep(bp);
 		sleep(1);
 	}
+	return 0;
+}
+
+void *sock_listener(void *_) {
+	// TODO: listen to socket
+	// TODO: implement encoding and it's parsing
+	sleep(2);
+	return 0;
 }
 
 int main(int argc, char **argv) {
 
-	pthread_t watch_thread;
-	int pret = pthread_create(&watch_thread, NULL, pager, NULL);
-	pthread_join(watch_thread, NULL);
+	size_t threads_count = 2;
+	pthread_t threads[threads_count];
 
-	q_free(queue);
+	pthread_create(&threads[0], NULL, pager, NULL);
+	pthread_create(&threads[1], NULL, sock_listener, NULL);
+
+	for (int i=0; i<threads_count; ++i) {
+		pthread_join(threads[i], NULL);
+	}
+
+	bpq_free(broot.bueue);
 }
