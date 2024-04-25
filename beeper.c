@@ -2,6 +2,10 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <string.h>
+#include <errno.h>
 
 #include "raylib.h"
 #include "beep.h"
@@ -22,20 +26,6 @@ Broot broot = {.bueue = NULL};
 
 pthread_mutex_t graceful_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool shutting_down = false;
-
-size_t my_strlen(const char *s) {
-	size_t len = 0;
-	for (;s[len] != '\0';++len) {
-		;
-	}
-	return len;
-}
-
-void my_memset(char *dest, char v, size_t len) {
-	for (int i=0; i<len; ++i) {
-		dest[i]=v;
-	}
-}
 
 void my_memcpy(char *dest, char *src, size_t len) {
 	for (int i=0; i<len; ++i) {
@@ -69,7 +59,7 @@ void copy_paste_buffer_time(int buf_time) {
 
 void beep(Beep bp) {
 	pthread_mutex_lock(&mutex);
-	bp.msg_len = my_strlen((const char *)bp.msg);
+	bp.msg_len = strlen((const char *)bp.msg);
 
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
 	SetTargetFPS(60);
@@ -82,7 +72,7 @@ void beep(Beep bp) {
 
 	ClearBackground(BG_COLOR);
 
-	double prev_time = GetTime();
+	double start_time = GetTime();
 
 	int is_copy_paste = 0;
 
@@ -92,11 +82,11 @@ void beep(Beep bp) {
 
 		size_t wrapped_msg_len = bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1+1;
 		char wrapped_msg[wrapped_msg_len+1];
-		my_memset(wrapped_msg, '\0', wrapped_msg_len);
+		memset(wrapped_msg, '\0', wrapped_msg_len);
 		wrap_msg(bp, wrapped_msg);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
-		if (bp.timer && GetTime()-prev_time >= bp.timer) {
+		if (bp.timer && GetTime()-start_time >= bp.timer) {
 			broot.bueue = bpq_push(broot.bueue, bp);
 			break;
 		}
@@ -153,7 +143,47 @@ void *pager(void *_) {
 }
 
 void *sock_listener(void *_) {
-	// TODO: listen to socket
+	char *path = "/tmp/beeper.sock";
+	unlink(path);
+	int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+	int option = 1;
+	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+	if (sockfd == -1) {
+		fprintf(stderr, "failed to get socket file descriptor: %s\n", strerror(errno));
+		goto exit;
+	}
+	struct sockaddr_un addr;
+	memset(&addr, 0, sizeof(addr));
+	addr.sun_family = AF_UNIX;
+	strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
+	socklen_t addr_len = sizeof(addr);
+
+	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
+		fprintf(stderr, "failed to bind socket '%s': %s\n", path, strerror(errno));
+		goto exit;
+	}
+	if (listen(sockfd, 0) == -1) {
+		fprintf(stderr, "failed to listen socket '%s': %s\n", path, strerror(errno));
+		goto exit;
+	}
+
+	int conn = accept(sockfd, (struct sockaddr *) &addr, &addr_len);
+	printf("conn: %d\n", conn);
+	if (conn == -1) {
+		fprintf(stderr, "failed to accept socket '%s': %s\n", path, strerror(errno));
+		close(conn);
+		goto exit;
+	}
+
+	char buf[1024];
+	memset(buf, 0, sizeof(buf));
+	int n = read(conn, buf, sizeof(buf)-1);
+	buf[n] = '\0';
+	if(close(conn) == -1) {
+		fprintf(stderr, "failed to close conn: %s\n", strerror(errno));
+	}
+
+	/*
 	// TODO: implement encoding and it's parsing
 	for (;;) {
 		sleep(2);
@@ -162,7 +192,13 @@ void *sock_listener(void *_) {
 		}
 		printf("HERE\n");
 	}
-	graceful_shutdown(true);
+	*/
+
+exit:
+	// graceful_shutdown(true);
+	if(close(sockfd) == -1) {
+		fprintf(stderr, "failed to close socket: %s\n", strerror(errno));
+	}
 	return 0;
 }
 
@@ -171,8 +207,8 @@ int main(int argc, char **argv) {
 	size_t threads_count = 2;
 	pthread_t threads[threads_count];
 
-	pthread_create(&threads[0], NULL, pager, NULL);
-	pthread_create(&threads[1], NULL, sock_listener, NULL);
+	pthread_create(&threads[0], NULL, sock_listener, NULL);
+	pthread_create(&threads[1], NULL, pager, NULL);
 
 	for (int i=0; i<threads_count; ++i) {
 		pthread_join(threads[i], NULL);
