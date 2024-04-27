@@ -21,11 +21,9 @@ Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255}; // very pale yellow
 Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128}; // black
 int SECOND = 1;
 
-Broot *broot2;
-/*
-pthread_mutex_t window_mutex = PTHREAD_MUTEX_INITIALIZER;
+Broot *broot;
 
-Broot broot = {.bueue=NULL, .mutex=PTHREAD_MUTEX_INITIALIZER};
+pthread_mutex_t window_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_mutex_t graceful_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool shutting_down = false;
@@ -37,16 +35,16 @@ void my_memcpy(char *dest, char *src, size_t len) {
 }
 
 
-void wrap_msg(Beep bp, char *wrapped_msg) {
-	int measured_text = MeasureText(bp.msg, FONT_SIZE);
+void wrap_msg(Beep *bp, char *wrapped_msg) {
+	int measured_text = MeasureText(bp->msg, FONT_SIZE);
 	int newline_count = measured_text/W_WIDTH;
-	double avg_char_size = (double)measured_text/(double)bp.msg_len;
+	double avg_char_size = (double)measured_text/(double)bp->msg_len;
 	int line_char_count = W_WIDTH/avg_char_size;
 	for (int i=0; i<newline_count; ++i) {
 		wrapped_msg[(i+1)*line_char_count+i] = '\n';
-		my_memcpy(wrapped_msg+(i*line_char_count)+i, bp.msg+(i*line_char_count), line_char_count);
+		my_memcpy(wrapped_msg+(i*line_char_count)+i, bp->msg+(i*line_char_count), line_char_count);
 	}
-	my_memcpy(wrapped_msg+(newline_count*line_char_count)+newline_count, bp.msg+(newline_count*line_char_count), bp.msg_len-(newline_count*line_char_count));
+	my_memcpy(wrapped_msg+(newline_count*line_char_count)+newline_count, bp->msg+(newline_count*line_char_count), bp->msg_len-(newline_count*line_char_count));
 	
 }
 
@@ -60,9 +58,9 @@ void copy_paste_buffer_time(int buf_time) {
 	}
 }
 
-void beep(Beep bp) {
+void beep(Beep *bp) {
 	pthread_mutex_lock(&window_mutex);
-	bp.msg_len = strlen((const char *)bp.msg);
+	bp->msg_len = strlen((const char *)bp->msg);
 
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
 	SetTargetFPS(60);
@@ -81,16 +79,16 @@ void beep(Beep bp) {
 
 	while (!WindowShouldClose()) {
 		BeginDrawing();
-		SetClipboardText(bp.msg);
+		SetClipboardText(bp->msg);
 
-		size_t wrapped_msg_len = bp.msg_len+MeasureText(bp.msg, FONT_SIZE)/W_WIDTH+1+1;
+		size_t wrapped_msg_len = bp->msg_len+MeasureText(bp->msg, FONT_SIZE)/W_WIDTH+1+1;
 		char wrapped_msg[wrapped_msg_len+1];
 		memset(wrapped_msg, '\0', wrapped_msg_len);
 		wrap_msg(bp, wrapped_msg);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
-		if (bp.timer && GetTime()-start_time >= bp.timer) {
-			broot.bueue = bpq_push(broot.bueue, bp);
+		if (bp->timer && GetTime()-start_time >= bp->timer) {
+			bpush(broot, bp);
 			break;
 		}
 
@@ -102,16 +100,13 @@ void beep(Beep bp) {
 		} else if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
-			SetClipboardText(bp.msg);
+			SetClipboardText(bp->msg);
 			is_copy_paste = 1;
 			break;
 		} else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
-			printf("HERE000:%p\n", (void *)broot.bueue);
-			broot.bueue = bpq_push(broot.bueue, bp);
-			printf("HERE000:%p\n", (void *)broot.bueue);
-			bpq_print(broot.bueue);
+			bpush(broot, bp);
 			break;
 		}
 		EndDrawing();
@@ -138,17 +133,8 @@ void *pager(void *_) {
 	// Beep bp = {.timer = 0, .msg = "this is a really long long long long long long long long long long long messagethis is a really long long long long long long long long long long long message"};
 	// broot.bueue = bpq_push(broot.bueue, bp);
 	for (;;) {
-		Beep bp = {.msg="ignore"};
-		pthread_mutex_lock(&broot.mutex);
-		broot.bueue = bpq_pop(broot.bueue, &bp);
-		pthread_mutex_unlock(&broot.mutex);
-
-		char *tmp = bp_string(bp);
-		printf("-- %s\n", tmp);
-		free(tmp);
-		
-		if (strcmp("ignore", bp.msg) != 0) {
-			printf("LALA:%s\n", bp.msg);
+		Beep *bp = bpop(broot);
+		if (bp != NULL) {
 			beep(bp);
 		}
 		if (graceful_shutdown(false)) {
@@ -187,7 +173,7 @@ void *sock_listener(void *_) {
 
 	for (;;) {
 	int conn = accept(sockfd, (struct sockaddr *) &addr, &addr_len);
-	printf("conn: %d\n", conn);
+	// printf("conn: %d\n", conn);
 	if (conn == -1) {
 		fprintf(stderr, "failed to accept socket '%s': %s\n", path, strerror(errno));
 		close(conn);
@@ -206,7 +192,7 @@ void *sock_listener(void *_) {
 	}
 
 	Beep bp = {.msg=buf};
-	beep(bp);
+	beep(&bp);
 	}
 
 exit:
@@ -218,7 +204,8 @@ exit:
 }
 
 
-int main2(int argc, char **argv) {
+int main(int argc, char **argv) {
+	broot = binit();
 
 	size_t threads_count = 2;
 	pthread_t threads[threads_count];
@@ -230,23 +217,25 @@ int main2(int argc, char **argv) {
 		pthread_join(threads[i], NULL);
 	}
 
-	bpq_free(broot.bueue);
+	bfree(broot);
 }
-*/
-int main(int argc, char **argv) {
-	broot2 = binit();
+
+/*
+int main1(int argc, char **argv) {
+	broot = binit();
 	Beep bp = {.msg="hey"};
-	bpush(broot2, &bp);
+	bpush(broot, &bp);
 	bp.msg="hey2";
-	bpush(broot2, &bp);
+	bpush(broot, &bp);
 
-	bprint(broot2);
+	bprint(broot);
 
-	Beep *bp2 = bpop(broot2);
-	bprint(broot2);
+	Beep *bp2 = bpop(broot);
+	bprint(broot);
 	char *tmp = bp_string(bp2);
 	printf("-- %s\n", tmp);
 	free(tmp);
 
-	bfree(broot2);
+	bfree(broot);
 }
+*/

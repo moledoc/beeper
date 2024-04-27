@@ -97,6 +97,7 @@ void bpq_free(Bueue *bpq) {
 }
 
 // -----------------------
+// TODO: handle br==NULL
 
 Broot *binit() {
 	Broot *tmp = malloc(sizeof(Broot));
@@ -109,10 +110,13 @@ void bpush(Broot *br, Beep *bp) {
 	pthread_mutex_lock(&(br->mutex));
 	Bueue *nbq = malloc(sizeof(Bueue));
 	nbq->bp = bp;
+	nbq->next = NULL;
+
 	if (br->bueue == NULL) {
 		br->bueue = nbq;
 		goto exit;
 	}
+
 	Bueue *cur = br->bueue;
 	for (;cur->next != NULL;cur = cur->next) {
 		;
@@ -144,7 +148,6 @@ void bprint(Broot *br) {
 	if (bpq == NULL) {
 		goto exit;
 	}
-		
 	for (; bpq != NULL; bpq = bpq->next) {
 		char *bp_str = bp_string(bpq->bp);
 		printf("{.next=%p, .bp=%s} ->\n", (void *)bpq->next, bp_str);
