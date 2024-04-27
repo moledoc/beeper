@@ -21,8 +21,7 @@ Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255}; // very pale yellow
 Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128}; // black
 int SECOND = 1;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-Broot broot = {.bueue = NULL};
+Broot broot = {.bueue = NULL, .mutex=PTHREAD_MUTEX_INITIALIZER};
 
 pthread_mutex_t graceful_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool shutting_down = false;
@@ -58,7 +57,7 @@ void copy_paste_buffer_time(int buf_time) {
 }
 
 void beep(Beep bp) {
-	pthread_mutex_lock(&mutex);
+	pthread_mutex_lock(&broot.mutex);
 	bp.msg_len = strlen((const char *)bp.msg);
 
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
@@ -105,7 +104,9 @@ void beep(Beep bp) {
 		} else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && 
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
+			printf("HERE000:%p\n", (void *)broot.bueue);
 			broot.bueue = bpq_push(broot.bueue, bp);
+			printf("HERE000:%p\n", (void *)broot.bueue);
 			break;
 		}
 		EndDrawing();
@@ -115,7 +116,7 @@ void beep(Beep bp) {
 		copy_paste_buffer_time(5*SECOND);
 	}
 	CloseWindow();
-	pthread_mutex_unlock(&mutex);
+	pthread_mutex_unlock(&broot.mutex);
 }
 
 bool graceful_shutdown(bool shutdown) {
@@ -128,15 +129,26 @@ bool graceful_shutdown(bool shutdown) {
 }
 
 void *pager(void *_) {
+	/*
 	Beep bp = {.timer = 0, .msg = "this is a really long long long long long long long long long long long messagethis is a really long long long long long long long long long long long message"};
 	broot.bueue = bpq_push(broot.bueue, bp);
-	for (; broot.bueue != NULL;) {
-		broot.bueue = bpq_pop(broot.bueue, &bp);
-		beep(bp);
-		sleep(1);
+	*/
+	// for (; broot.bueue != NULL;) {
+	Beep *bp = NULL;
+	for (;;) {
+		pthread_mutex_lock(&broot.mutex);
+		broot.bueue = bpq_pop(broot.bueue, bp);
+		pthread_mutex_unlock(&broot.mutex);
+
+		printf("HERE: %d\n", (void *)bp==NULL);
+		if (bp != NULL) {
+			printf("LALA:%s\n", bp->msg);
+			beep(*bp);
+		}
 		if (graceful_shutdown(false)) {
 			break;
 		}
+		sleep(3);
 	}
 	graceful_shutdown(true);
 	return 0;
@@ -167,6 +179,7 @@ void *sock_listener(void *_) {
 		goto exit;
 	}
 
+	for (;;) {
 	int conn = accept(sockfd, (struct sockaddr *) &addr, &addr_len);
 	printf("conn: %d\n", conn);
 	if (conn == -1) {
@@ -182,6 +195,13 @@ void *sock_listener(void *_) {
 	if(close(conn) == -1) {
 		fprintf(stderr, "failed to close conn: %s\n", strerror(errno));
 	}
+	if (n > 1 && buf[0] == 'q') {
+		break;
+	}
+
+	Beep bp = {.msg=buf};
+	beep(bp);
+	}
 
 	/*
 	// TODO: implement encoding and it's parsing
@@ -195,7 +215,7 @@ void *sock_listener(void *_) {
 	*/
 
 exit:
-	// graceful_shutdown(true);
+	graceful_shutdown(true);
 	if(close(sockfd) == -1) {
 		fprintf(stderr, "failed to close socket: %s\n", strerror(errno));
 	}

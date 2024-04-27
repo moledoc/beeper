@@ -3,6 +3,7 @@
 #ifndef BEEP_H_
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 
 typedef struct {
 	double timer;
@@ -17,6 +18,7 @@ typedef struct Bueue {
 
 typedef struct {
 	Bueue *bueue;
+	pthread_mutex_t mutex;
 } Broot;
 
 char *bp_string(Beep bp);
