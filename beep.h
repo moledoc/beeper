@@ -3,13 +3,16 @@
 #ifndef BEEP_H_
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <stdint.h>
 #include <pthread.h>
 #include <unistd.h>
 
 typedef struct {
 	double timer;
+	bool repeat;
 	char *msg;
-	size_t msg_len;
+	uint8_t msg_len;
 } Beep;
 
 typedef struct Bueue {
@@ -23,6 +26,8 @@ typedef struct {
 } Broot;
 
 char *bp_string(Beep *bp);
+void bp_print(Beep *bp);
+
 
 Broot *binit();
 void bpush(Broot *br, Beep *bp);
@@ -41,8 +46,14 @@ char *bp_string(Beep *bp) {
 	if (str == NULL) {
 		return NULL;
 	}
-	snprintf(str, 1024, "{.timer=%0.1f, .msg_len=%lu, .msg=%s}", bp->timer, (unsigned long)bp->msg_len, bp->msg);
+	snprintf(str, 1024, "{.timer=%0.1f, .repeat=%d, .msg_len=%lu, .msg=%s}", bp->timer, bp->repeat, (unsigned long)bp->msg_len, bp->msg);
 	return str;
+}
+
+void bp_print(Beep *bp) {
+	char *tmp = bp_string(bp);
+	printf("%s\n", tmp);
+	free(tmp);
 }
 
 Bueue *bpq_push(Bueue *bpq, Beep new_bp) {
