@@ -44,11 +44,12 @@ char *bp_string(Beep *bp) {
 	if (!bp) {
 		return NULL;
 	}
-	char *str = calloc((1024+1), sizeof(char));
+	int n = 1024;
+	char *str = calloc((n+1), sizeof(char));
 	if (str == NULL) {
 		return NULL;
 	}
-	snprintf(str, 1024, "%p -- {.id=%u, .timer=%0.1f, .repeat=%d, .msg_len=%lu, .msg=%s}", (void *)bp, bp->id, bp->timer, bp->repeat, (unsigned long)bp->msg_len, bp->msg);
+	snprintf(str, n, "%p -- {.id=%u, .timer=%0.1f, .repeat=%d, .msg_len=%lu, .msg=%s}", (void *)bp, bp->id, bp->timer, bp->repeat, (unsigned long)bp->msg_len, bp->msg);
 	return str;
 }
 
@@ -117,7 +118,7 @@ void bprint(Broot *br) {
 	}
 	for (; bpq != NULL; bpq = bpq->next) {
 		char *bp_str = bp_string(bpq->bp);
-		printf("{.next=%p, .bp=%s} ->\n", (void *)bpq->next, bp_str);
+		printf("{.cur=%p, .next=%p, .bp=%s} ->\n", (void *)bpq, (void *)bpq->next, bp_str);
 		if (bp_str != NULL) {
 			free(bp_str);
 		}

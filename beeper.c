@@ -159,9 +159,6 @@ void beep(Beep *bp) {
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
 			bpush(broot, bp);
-			printf("HERE--1\n");
-			bprint(broot);
-			bprint(broot);
 			break;
 		}
 		EndDrawing();
@@ -172,6 +169,9 @@ void beep(Beep *bp) {
 	}
 	CloseWindow();
 	pthread_mutex_unlock(&window_mutex);
+	if (broot->bueue){
+			printf("+++ + + %s\n", broot->bueue->bp->msg);
+	}
 }
 
 bool graceful_shutdown(bool shutdown) {
@@ -188,7 +188,10 @@ void *pager(void *_) {
 		// FIXME: for some reason printing/popping broot messes up bp.msg
 		bprint(broot);
 		Beep *bp = NULL; // bpop(broot);
-		bprint(broot);
+		if (broot->bueue) {
+			printf("=== = = %s\n", broot->bueue->bp->msg);
+		}
+
 		if (bp != NULL) {
 			bp_print("bpopped beep", bp, __FILE__, __LINE__);
 			beep(bp);
@@ -275,15 +278,13 @@ void *sock_listener(void *_) {
 
 		char msg[MSG_SIZE+1];
 		memset(msg, 0, sizeof(msg));
-		Beep bp = {
-			.id=0,
-			.msg=msg
-		};
-		if (!decode_comms(buf, n, &bp)) {
+		Beep *bp = calloc(1, sizeof(Beep));
+		bp->msg = msg;
+		if (!decode_comms(buf, n, bp)) {
 			continue;
 		}
-		bp_print("received beep", &bp, __FILE__, __LINE__);
-		beep(&bp);
+		bp_print("received beep", bp, __FILE__, __LINE__);
+		beep(bp);
 	}
 
 exit:
