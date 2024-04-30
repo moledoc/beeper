@@ -7,12 +7,16 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <string.h>
+
+// TODO: naming
 
 typedef struct {
+	uint32_t id;
 	double timer;
 	bool repeat;
-	char *msg;
 	uint8_t msg_len;
+	char *msg;
 } Beep;
 
 typedef struct Bueue {
@@ -21,12 +25,12 @@ typedef struct Bueue {
 } Bueue;
 
 typedef struct {
-	Bueue *bueue;
 	pthread_mutex_t mutex;
+	Bueue *bueue;
 } Broot;
 
 char *bp_string(Beep *bp);
-void bp_print(Beep *bp);
+void bp_print(char *desc, Beep *bp, char *filepath, int linenr);
 
 
 Broot *binit();
@@ -35,79 +39,28 @@ Beep *bpop(Broot *br);
 void bprint(Broot *br);
 void bfree(Broot *br);
 
-Bueue *bpq_push(Bueue *bpq, Beep new_beep);
-Bueue *bpq_pop(Bueue *bpq, Beep *beep);
-void bpq_print(Bueue *bpq);
-void bpq_free(Bueue *bpq);
-
 // TODO: allocate str size smarter
 char *bp_string(Beep *bp) {
+	if (!bp) {
+		return NULL;
+	}
 	char *str = calloc((1024+1), sizeof(char));
 	if (str == NULL) {
 		return NULL;
 	}
-	snprintf(str, 1024, "{.timer=%0.1f, .repeat=%d, .msg_len=%lu, .msg=%s}", bp->timer, bp->repeat, (unsigned long)bp->msg_len, bp->msg);
+	snprintf(str, 1024, "%p -- {.id=%u, .timer=%0.1f, .repeat=%d, .msg_len=%lu, .msg=%s}", (void *)bp, bp->id, bp->timer, bp->repeat, (unsigned long)bp->msg_len, bp->msg);
 	return str;
 }
 
-void bp_print(Beep *bp) {
+void bp_print(char *desc, Beep *bp, char *filepath, int linenr) {
+	if (strlen(desc) != 0) {
+		printf("%s: ", desc);
+	}
 	char *tmp = bp_string(bp);
-	printf("%s\n", tmp);
+	printf("%s:%d %s\n", filepath, linenr, tmp);
 	free(tmp);
 }
 
-Bueue *bpq_push(Bueue *bpq, Beep new_bp) {
-	Bueue *nbpq = calloc(1, sizeof(Bueue));
-	nbpq->bp = &new_bp;
-	if (bpq == NULL) {
-		return nbpq;
-	}
-	Bueue *cur = bpq;
-	for (;cur->next != NULL; cur = cur->next) {
-		;
-	}
-	cur->next = nbpq;
-	return bpq;
-}
-
-Bueue *bpq_pop(Bueue *bpq, Beep *bp) {
-	if (bpq == NULL) {
-		return NULL;
-	}
-	(*bp) = (*bpq->bp);
-	Bueue *nbpq = bpq->next;
-	free(bpq);
-	return nbpq;
-}
-
-void bpq_print(Bueue *bpq) {
-	if (bpq == NULL) {
-		printf("{NULL}\n");
-		return;
-	}
-		
-	for (; bpq != NULL; bpq = bpq->next) {
-		char *bp_str = bp_string(bpq->bp);
-		printf("{.next=%p, .bp=%s} ->\n", (void *)bpq->next, bp_str);
-		if (bp_str != NULL) {
-			free(bp_str);
-		}
-	}
-	printf("{NULL}\n");
-}
-
-void bpq_free(Bueue *bpq) {
-	if (bpq == NULL) {
-		return;
-	}
-	for (; bpq != NULL;) {
-		Bueue *tmp = bpq->next;
-		free(bpq);
-		bpq = tmp;
-	}
-}
-
-// -----------------------
 // TODO: handle br==NULL
 
 Broot *binit() {
@@ -119,7 +72,7 @@ Broot *binit() {
 
 void bpush(Broot *br, Beep *bp) {
 	pthread_mutex_lock(&(br->mutex));
-	Bueue *nbq = malloc(sizeof(Bueue));
+	Bueue *nbq = calloc(1, sizeof(Bueue));
 	nbq->bp = bp;
 	nbq->next = NULL;
 
@@ -134,6 +87,7 @@ void bpush(Broot *br, Beep *bp) {
 	}
 	cur->next = nbq;
 exit:
+	bp_print("bpush beep", nbq->bp, __FILE__, __LINE__);
 	pthread_mutex_unlock(&(br->mutex));
 	return;
 }
@@ -149,12 +103,14 @@ Beep *bpop(Broot *br) {
 	br->bueue = br->bueue->next;
 	free(freeme);
 exit:
+	bp_print("bpop beep", bp, __FILE__, __LINE__);
 	pthread_mutex_unlock(&(br->mutex));
 	return bp;
 }
 
 void bprint(Broot *br) {
 	pthread_mutex_lock(&(br->mutex));
+	printf("queue: ");
 	Bueue *bpq = br->bueue;
 	if (bpq == NULL) {
 		goto exit;

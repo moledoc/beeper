@@ -43,6 +43,35 @@ pthread_mutex_t window_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t graceful_mutex = PTHREAD_MUTEX_INITIALIZER;
 bool shutting_down = false;
 
+typedef struct {
+	uint32_t count;
+	pthread_mutex_t mutex;
+} Counter;
+
+Counter *cinit() {
+	Counter *counter = malloc(sizeof(Counter));
+	counter->count = 1;
+	pthread_mutex_init(&counter->mutex, NULL);
+	return counter;
+}
+
+void cfree(Counter *counter) {
+	free(counter);
+}
+
+uint32_t get_count(Counter *counter) {
+	uint32_t count = 0;
+
+	pthread_mutex_lock(&(counter->mutex));
+	count = counter->count;
+	++counter->count;
+	pthread_mutex_unlock(&(counter->mutex));
+	return count;
+}
+
+
+Counter *counter;
+
 void my_memcpy(char *dest, char *src, size_t len) {
 	for (int i=0; i<len; ++i) {
 		dest[i] = src[i];
@@ -75,7 +104,13 @@ void copy_paste_buffer_time(int buf_time) {
 
 void beep(Beep *bp) {
 	pthread_mutex_lock(&window_mutex);
-	bp->msg_len = strlen((const char *)bp->msg);
+	if (bp->msg_len == 0) {
+		bp->msg_len = strlen((const char *)bp->msg);
+	}
+	if (!bp->id) {
+		bp->id = get_count(counter);
+	}
+	bp_print("Beep with", bp, __FILE__, __LINE__);
 
 	InitWindow(W_WIDTH, W_HEIGHT, "beep");
 	SetTargetFPS(60);
@@ -124,6 +159,9 @@ void beep(Beep *bp) {
 			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
 			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
 			bpush(broot, bp);
+			printf("HERE--1\n");
+			bprint(broot);
+			bprint(broot);
 			break;
 		}
 		EndDrawing();
@@ -146,12 +184,13 @@ bool graceful_shutdown(bool shutdown) {
 }
 
 void *pager(void *_) {
-
-	// Beep bp = {.timer = 0, .msg = "this is a really long long long long long long long long long long long messagethis is a really long long long long long long long long long long long message"};
-	// broot.bueue = bpq_push(broot.bueue, bp);
 	for (;;) {
-		Beep *bp = bpop(broot);
+		// FIXME: for some reason printing/popping broot messes up bp.msg
+		bprint(broot);
+		Beep *bp = NULL; // bpop(broot);
+		bprint(broot);
 		if (bp != NULL) {
+			bp_print("bpopped beep", bp, __FILE__, __LINE__);
 			beep(bp);
 		}
 		if (graceful_shutdown(false)) {
@@ -236,11 +275,14 @@ void *sock_listener(void *_) {
 
 		char msg[MSG_SIZE+1];
 		memset(msg, 0, sizeof(msg));
-		Beep bp = {.msg=msg};
+		Beep bp = {
+			.id=0,
+			.msg=msg
+		};
 		if (!decode_comms(buf, n, &bp)) {
 			continue;
 		}
-		bp_print(&bp);
+		bp_print("received beep", &bp, __FILE__, __LINE__);
 		beep(&bp);
 	}
 
@@ -254,6 +296,7 @@ exit:
 
 
 int main(int argc, char **argv) {
+	counter = cinit();
 	broot = binit();
 
 	size_t threads_count = 2;
@@ -267,24 +310,5 @@ int main(int argc, char **argv) {
 	}
 
 	bfree(broot);
+	cfree(counter);
 }
-
-/*
-int main1(int argc, char **argv) {
-	broot = binit();
-	Beep bp = {.msg="hey"};
-	bpush(broot, &bp);
-	bp.msg="hey2";
-	bpush(broot, &bp);
-
-	bprint(broot);
-
-	Beep *bp2 = bpop(broot);
-	bprint(broot);
-	char *tmp = bp_string(bp2);
-	printf("-- %s\n", tmp);
-	free(tmp);
-
-	bfree(broot);
-}
-*/
