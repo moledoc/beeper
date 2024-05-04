@@ -7,6 +7,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
+#include <assert.h>
 
 void mmcp(uint8_t *dest, const uint8_t *src, uint8_t len) {
 	unsigned char *src_cp = (unsigned char*)src;
@@ -46,6 +47,7 @@ typedef struct {
 } Packet;
 
 void print_packet(Packet packet);
+void print_buf(uint8_t *buf);
 void free_packet(Packet *packet);
 uint8_t *marshal(Packet packet); // allocs memory
 Packet *unmarshal(uint8_t *buf); // allocs memory
@@ -53,7 +55,7 @@ void proto_send(); // TODO:
 void proto_receive(); // TODO:
 
 void print_packet(Packet packet) {
-	fprintf(stderr, "Packet = {"
+	fprintf(stderr, "{"
 		"\n\t.version_minor=%c"
 		"\n\t.version_major=%c"
 		"\n\t.repeat=%u"
@@ -68,6 +70,14 @@ void print_packet(Packet packet) {
 	);
 }
 
+void print_buf(uint8_t *buf) {
+	assert(METADATA_SIZE==5);
+	for (int i=0;i<METADATA_SIZE;++i) {
+		fprintf(stderr, "%c", buf[i]);
+	}
+	fprintf(stderr, "%s\n", buf+METADATA_SIZE);
+}
+
 void free_packet(Packet *packet) {
 	if (packet == NULL) {
 		return;
@@ -80,6 +90,11 @@ void free_packet(Packet *packet) {
 
 
 uint8_t *marshal(Packet packet) {
+	assert(METADATA_SIZE == 5);
+
+	fprintf(stderr, "marshalling packet: ");
+	print_packet(packet);
+
 	if (packet.version_major != VERSION_MAJOR) {
 		fprintf(stderr, "[ERROR]: [MVMAMM]: marshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, packet.version_major);
 		return NULL;
@@ -88,9 +103,10 @@ uint8_t *marshal(Packet packet) {
 		fprintf(stderr, "[ERROR]: [MVMIMM]: marshal minor version mismatch: expected %c, got %c\n", VERSION_MINOR, packet.version_minor);
 		return NULL;
 	}
+
 	uint8_t *buf = calloc(PACKET_SIZE+1, sizeof(uint8_t));
-	buf[IDX_VERSION_MINOR] = packet.version_minor;
-	buf[IDX_VERSION_MAJOR] = packet.version_major;
+	buf[IDX_VERSION_MINOR] = packet.version_minor+'0';
+	buf[IDX_VERSION_MAJOR] = packet.version_major+'0';
 	buf[IDX_REPEAT] = (uint8_t)packet.repeat+'0';
 	buf[IDX_TIMER_FRAC] = (uint8_t)((uint32_t)(packet.timer*10.0)%10);
 	buf[IDX_TIMER_INT] = (uint8_t)packet.timer;
@@ -99,11 +115,16 @@ uint8_t *marshal(Packet packet) {
 }
 
 Packet *unmarshal(uint8_t *buf) {
+	assert(METADATA_SIZE == 5);
 	uint32_t buf_size = sz(buf);
 	if (buf_size < METADATA_SIZE) {
 		fprintf(stderr, "[ERROR]: [UMBSLTMD]: unmarshal buffer size less than metadata: expected >%d, got %d\n", METADATA_SIZE, buf_size);
 		return NULL;
 	}
+
+	fprintf(stderr, "unmarshalling buf: ");
+	print_buf(buf);
+
 	if (buf[IDX_VERSION_MAJOR] != VERSION_MAJOR) {
 		fprintf(stderr, "[ERROR]: [UMVMAMM]: unmarshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, buf[IDX_VERSION_MAJOR]);
 		return NULL;
@@ -112,6 +133,7 @@ Packet *unmarshal(uint8_t *buf) {
 		fprintf(stderr, "[ERROR]: [UMVMIMM]: unmarshal minor version mismatch: expected %c, got %c\n", VERSION_MINOR, buf[IDX_VERSION_MINOR]);
 		return NULL;
 	}
+
 	Packet *packet = calloc(1, sizeof(Packet));
 	packet->version_minor = buf[IDX_VERSION_MINOR];
 	packet->version_major = buf[IDX_VERSION_MAJOR];

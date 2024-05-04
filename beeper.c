@@ -5,32 +5,14 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "protocol.h"
+#include "context.h"
 
-typedef struct {
-	bool shutdown;
-	pthread_mutex_t mutex;
-} Context;
+// TODO: logging
 
-Context *context = NULL; 
-
-Context *init_context() {
-	Context *ctx= calloc(1, sizeof(Context));
-	ctx->shutdown = false;
-	pthread_mutex_init(&ctx->mutex, NULL);
-	return ctx;
-}
-
-bool shutdown_state(bool shutdown) {
-	pthread_mutex_lock(&context->mutex);
-	if (shutdown && !context->shutdown) {
-		context->shutdown = shutdown;
-	}
-	pthread_mutex_unlock(&context->mutex);
-	return context->shutdown;
-}
-
+Context *context = NULL;
 
 void *sock_listener(void *_) {
 	char *path = "/tmp/beeper.sock";
@@ -78,12 +60,13 @@ void *sock_listener(void *_) {
 		}
 
 		Packet *packet = unmarshal(buf);
-		print_packet(*packet);
+		uint8_t *buff = marshal(*packet);
 		free_packet(packet);
+		free(buff);
 	}
 
 exit:
-	shutdown_state(true);
+	should_continue(context, true);
 	if(close(sockfd) == -1) {
 		fprintf(stderr, "failed to close socket: %s\n", strerror(errno));
 	}
@@ -101,7 +84,7 @@ int main() {
 	for (int i=0; i<threads_count; ++i) {
 		pthread_join(threads[i], NULL);
 	}
-	free(context);
+	free_context(context);
 }
 
 /*
