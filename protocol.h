@@ -49,11 +49,11 @@ void print_packet(Packet packet);
 void free_packet(Packet *packet);
 uint8_t *marshal(Packet packet); // allocs memory
 Packet *unmarshal(uint8_t *buf); // allocs memory
-void send(); // TODO:
-void receive(); // TODO:
+void proto_send(); // TODO:
+void proto_receive(); // TODO:
 
 void print_packet(Packet packet) {
-	printf("Packet = {"
+	fprintf(stderr, "Packet = {"
 		"\n\t.version_minor=%c"
 		"\n\t.version_major=%c"
 		"\n\t.repeat=%u"
@@ -116,7 +116,7 @@ Packet *unmarshal(uint8_t *buf) {
 	packet->version_minor = buf[IDX_VERSION_MINOR];
 	packet->version_major = buf[IDX_VERSION_MAJOR];
 	packet->repeat = buf[IDX_REPEAT]-'0';
-	packet->timer = buf[IDX_TIMER_INT]+(double)buf[IDX_TIMER_FRAC]/10.0;
+	packet->timer = buf[IDX_TIMER_INT]-'0'+(double)(buf[IDX_TIMER_FRAC]-'0')/10.0;
 	packet->msg = calloc(MSG_SIZE+1, sizeof(unsigned char));
 	mmcp(packet->msg, buf+METADATA_SIZE, MSG_SIZE);
 	return packet;	
