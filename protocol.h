@@ -48,10 +48,10 @@ typedef struct {
 	unsigned char *msg; //[MSG_SIZE+1];
 } Packet;
 
-void packet_log(char *format, Packet packet);
-void buf_log(char *format, uint8_t *buf);
 char *packet_string(Packet packet); // allocs memory
 char *buf_string(uint8_t *buf); // allocs memory
+void packet_log(char *format, Packet *packet);
+void buf_log(char *format, uint8_t *buf);
 void packet_free(Packet *packet);
 uint8_t *marshal(Packet packet); // allocs memory
 Packet *unmarshal(uint8_t *buf); // allocs memory
@@ -79,8 +79,12 @@ char *packet_string(Packet packet) {
 	return str;
 }
 
-void packet_log(char *format, Packet packet) {
-	char *str = packet_string(packet);
+void packet_log(char *format, Packet *packet) {
+	if (packet == NULL) {
+		TraceLog(LOG_INFO, format, "{NULL}");
+		return;
+	}
+	char *str = packet_string(*packet);
 	if (str == NULL) {
 		TraceLog(LOG_ERROR, "failed to make packet to string");
 		return;
@@ -89,17 +93,30 @@ void packet_log(char *format, Packet packet) {
 	free(str);
 }
 
-void buf_log(char *format, uint8_t *buf) {
+char *buf_string(uint8_t *buf) {
 	assert(METADATA_SIZE==5);
 	char *str = calloc(PACKET_SIZE, sizeof(char));
 	if (str == NULL) {
 		TraceLog(LOG_ERROR, "failed to make buf to string");
-		return;
+		return NULL;
 	}
 	for (int i=0;i<METADATA_SIZE;++i) {
 		snprintf(str+i, 2*sizeof(char), "%c", buf[i]);
 	}
 	snprintf(str+METADATA_SIZE, MSG_SIZE*sizeof(char), "%s", buf+METADATA_SIZE);
+	return str;
+}
+
+void buf_log(char *format, uint8_t *buf) {
+	if (buf == NULL) {
+		TraceLog(LOG_INFO, format, "{NULL}");
+		return;
+	}
+	char *str = buf_string(buf);
+	if (str == NULL) {
+		TraceLog(LOG_ERROR, "failed to make buf to string");
+		return;
+	}
 	TraceLog(LOG_INFO, format, str);
 	free(str);
 }
@@ -117,7 +134,7 @@ void packet_free(Packet *packet) {
 
 uint8_t *marshal(Packet packet) {
 	assert(METADATA_SIZE == 5);
-	packet_log("marshalling packet: %s", packet);
+	packet_log("marshalling packet: %s", &packet);
 
 	if (packet.version_major != VERSION_MAJOR) {
 		TraceLog(LOG_ERROR, "marshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, packet.version_major);

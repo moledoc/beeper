@@ -5,7 +5,6 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <errno.h>
-#include <signal.h>
 
 #include "protocol.h"
 #include "context.h"
@@ -60,14 +59,12 @@ void *sock_listener(void *_) {
 		uint8_t buf[PACKET_SIZE];
 		memset(buf, 0, sizeof(buf));
 		int n = read(conn, buf, sizeof(buf));
+		TraceLog(LOG_INFO, "read %d bytes", n);
 
 		TraceLog(LOG_INFO, "closing connection");
 		if(close(conn) == -1) {
 			TraceLog(LOG_ERROR, "closing connection failed: %s", strerror(errno));
 		}
-
-		TraceLog(LOG_INFO, "read %d bytes", n);
-
 
 		// TODO: closing listener
 		if (n > 0 && buf[0] == 'q') {
@@ -76,9 +73,18 @@ void *sock_listener(void *_) {
 		}
 
 		Packet *packet = unmarshal(buf);
-		packet_log("unmarshalled payload: %s", *packet);
+		packet_log("unmarshalled payload: %s", packet);
 		uint8_t *buff = marshal(*packet);
 		buf_log("marshalled payload: %s", buff);
+
+		packet_log("head of queue: %s", stored_packets_head(context));
+
+		store_packet(context, *packet);
+		stored_packets_log(context);
+
+		// pop_packet(context);
+		// stored_packets_log(context);
+
 		packet_free(packet);
 		free(buff);
 	}
