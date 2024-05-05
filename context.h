@@ -7,9 +7,11 @@
 #include <stdlib.h>
 #include <pthread.h>
 
+#include "raylib.h"
+
 typedef struct {
-	bool shutdown;
 	pthread_mutex_t mutex;
+	bool on;
 } Context;
 
 Context *init_context();
@@ -18,7 +20,7 @@ bool should_continue(Context *ctx, bool shutdown);
 
 Context *init_context() {
 	Context *ctx= calloc(1, sizeof(Context));
-	ctx->shutdown = false;
+	ctx->on = false;
 	pthread_mutex_init(&ctx->mutex, NULL);
 	return ctx;
 }
@@ -27,14 +29,14 @@ void free_context(Context *ctx) {
 	free(ctx);
 }
 
-bool should_continue(Context *ctx, bool shutdown) {
+bool is_on(Context *ctx, bool on) {
 	pthread_mutex_lock(&ctx->mutex);
-	if (shutdown && !ctx->shutdown) {
-		ctx->shutdown = shutdown;
-		fprintf(stderr, "shutting down...\n");
+	if (on && !ctx->on) {
+		ctx->on = on;
+		TraceLog(LOG_INFO, "shutting down...");
 	}
 	pthread_mutex_unlock(&ctx->mutex);
-	return ctx->shutdown;
+	return ctx->on;
 }
 
 #endif // CONTEXT_H_

@@ -9,6 +9,8 @@
 #include <math.h>
 #include <assert.h>
 
+#include "raylib.h"
+
 void mmcp(uint8_t *dest, const uint8_t *src, uint8_t len) {
 	unsigned char *src_cp = (unsigned char*)src;
 	for (uint8_t i=0; i<len || (*src_cp) != '\0'; ++i, ++src_cp) {
@@ -46,39 +48,63 @@ typedef struct {
 	unsigned char *msg; //[MSG_SIZE+1];
 } Packet;
 
-void print_packet(Packet packet);
-void print_buf(uint8_t *buf);
-void free_packet(Packet *packet);
+void packet_log(char *format, Packet packet);
+void buf_log(char *format, uint8_t *buf);
+char *packet_string(Packet packet); // allocs memory
+char *buf_string(uint8_t *buf); // allocs memory
+void packet_free(Packet *packet);
 uint8_t *marshal(Packet packet); // allocs memory
 Packet *unmarshal(uint8_t *buf); // allocs memory
 void proto_send(); // TODO:
 void proto_receive(); // TODO:
 
-void print_packet(Packet packet) {
-	fprintf(stderr, "{"
+char *packet_string(Packet packet) {
+	char *str = calloc(512, sizeof(char));
+	if (str == NULL) {
+		return NULL;
+	}
+	snprintf(str, 512*sizeof(char), "{"
 		"\n\t.version_minor=%c"
 		"\n\t.version_major=%c"
 		"\n\t.repeat=%u"
 		"\n\t.timer=%0.1f"
 		"\n\t.msg=%s"
-		"\n}\n",
+		"\n}",
 		packet.version_minor,
 		packet.version_major,
 		packet.repeat,
 		floor(packet.timer*10.0)/10.0,
 		packet.msg
 	);
+	return str;
 }
 
-void print_buf(uint8_t *buf) {
-	assert(METADATA_SIZE==5);
-	for (int i=0;i<METADATA_SIZE;++i) {
-		fprintf(stderr, "%c", buf[i]);
+void packet_log(char *format, Packet packet) {
+	char *str = packet_string(packet);
+	if (str == NULL) {
+		TraceLog(LOG_ERROR, "failed to make packet to string");
+		return;
 	}
-	fprintf(stderr, "%s\n", buf+METADATA_SIZE);
+	TraceLog(LOG_INFO, format, str);
+	free(str);
 }
 
-void free_packet(Packet *packet) {
+void buf_log(char *format, uint8_t *buf) {
+	assert(METADATA_SIZE==5);
+	char *str = calloc(PACKET_SIZE, sizeof(char));
+	if (str == NULL) {
+		TraceLog(LOG_ERROR, "failed to make buf to string");
+		return;
+	}
+	for (int i=0;i<METADATA_SIZE;++i) {
+		snprintf(str+i, 2*sizeof(char), "%c", buf[i]);
+	}
+	snprintf(str+METADATA_SIZE, MSG_SIZE*sizeof(char), "%s", buf+METADATA_SIZE);
+	TraceLog(LOG_INFO, format, str);
+	free(str);
+}
+
+void packet_free(Packet *packet) {
 	if (packet == NULL) {
 		return;
 	}
@@ -91,25 +117,23 @@ void free_packet(Packet *packet) {
 
 uint8_t *marshal(Packet packet) {
 	assert(METADATA_SIZE == 5);
-
-	fprintf(stderr, "marshalling packet: ");
-	print_packet(packet);
+	packet_log("marshalling packet: %s", packet);
 
 	if (packet.version_major != VERSION_MAJOR) {
-		fprintf(stderr, "[ERROR]: [MVMAMM]: marshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, packet.version_major);
+		TraceLog(LOG_ERROR, "marshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, packet.version_major);
 		return NULL;
 	}
 	if (packet.version_minor != VERSION_MINOR) {
-		fprintf(stderr, "[ERROR]: [MVMIMM]: marshal minor version mismatch: expected %c, got %c\n", VERSION_MINOR, packet.version_minor);
+		TraceLog(LOG_ERROR, "marshal minor version mismatch: expected %c, got %c\n", VERSION_MINOR, packet.version_minor);
 		return NULL;
 	}
 
 	uint8_t *buf = calloc(PACKET_SIZE+1, sizeof(uint8_t));
-	buf[IDX_VERSION_MINOR] = packet.version_minor+'0';
-	buf[IDX_VERSION_MAJOR] = packet.version_major+'0';
+	buf[IDX_VERSION_MINOR] = packet.version_minor;
+	buf[IDX_VERSION_MAJOR] = packet.version_major;
 	buf[IDX_REPEAT] = (uint8_t)packet.repeat+'0';
-	buf[IDX_TIMER_FRAC] = (uint8_t)((uint32_t)(packet.timer*10.0)%10);
-	buf[IDX_TIMER_INT] = (uint8_t)packet.timer;
+	buf[IDX_TIMER_FRAC] = (uint8_t)((uint32_t)(packet.timer*10.0)%10)+'0';
+	buf[IDX_TIMER_INT] = (uint8_t)packet.timer+'0';
 	mmcp(buf+(uint8_t)METADATA_SIZE, packet.msg, MSG_SIZE);
 	return buf;
 }
@@ -118,19 +142,18 @@ Packet *unmarshal(uint8_t *buf) {
 	assert(METADATA_SIZE == 5);
 	uint32_t buf_size = sz(buf);
 	if (buf_size < METADATA_SIZE) {
-		fprintf(stderr, "[ERROR]: [UMBSLTMD]: unmarshal buffer size less than metadata: expected >%d, got %d\n", METADATA_SIZE, buf_size);
+		TraceLog(LOG_ERROR, "unmarshal buffer size less than metadata: expected >%d, got %d\n", METADATA_SIZE, buf_size);
 		return NULL;
 	}
 
-	fprintf(stderr, "unmarshalling buf: ");
-	print_buf(buf);
+	buf_log("unmarshalling buf: %s", buf);
 
 	if (buf[IDX_VERSION_MAJOR] != VERSION_MAJOR) {
-		fprintf(stderr, "[ERROR]: [UMVMAMM]: unmarshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, buf[IDX_VERSION_MAJOR]);
+		TraceLog(LOG_ERROR, "unmarshal major version mismatch: expected %c, got %c\n", VERSION_MAJOR, buf[IDX_VERSION_MAJOR]);
 		return NULL;
 	}
 	if (buf[IDX_VERSION_MINOR] != VERSION_MINOR) {
-		fprintf(stderr, "[ERROR]: [UMVMIMM]: unmarshal minor version mismatch: expected %c, got %c\n", VERSION_MINOR, buf[IDX_VERSION_MINOR]);
+		TraceLog(LOG_ERROR, "unmarshal minor version mismatch: expected %c, got %c\n", VERSION_MINOR, buf[IDX_VERSION_MINOR]);
 		return NULL;
 	}
 

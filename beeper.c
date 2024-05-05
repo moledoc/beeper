@@ -9,66 +9,84 @@
 
 #include "protocol.h"
 #include "context.h"
-
-// TODO: logging
+#include "raylib.h"
 
 Context *context = NULL;
 
 void *sock_listener(void *_) {
 	char *path = "/tmp/beeper.sock";
-	unlink(path);
+	TraceLog(LOG_INFO, "start listening to socket '%s'", path);
+	int unlnk = unlink(path);
+	if (unlnk == -1) {
+		TraceLog(LOG_ERROR, "failed to unlink '%s': %s", path, strerror(errno));
+		is_on(context, true);
+		return 0;
+	}
+		
 	int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-	int option = 1;
-	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 	if (sockfd == -1) {
-		fprintf(stderr, "failed to get socket file descriptor: %s\n", strerror(errno));
+		TraceLog(LOG_ERROR, "failed to create unix socket at '%s': %s", path, strerror(errno));
 		goto exit;
 	}
+	int option = 1;
+	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 	struct sockaddr_un addr;
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path, path, sizeof(addr.sun_path)-1);
 	socklen_t addr_len = sizeof(addr);
 
+	TraceLog(LOG_INFO, "binding to socket '%s'", path);
 	if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
-		fprintf(stderr, "failed to bind socket '%s': %s\n", path, strerror(errno));
+		TraceLog(LOG_ERROR, "failed to bind socket '%s': %s\n", path, strerror(errno));
 		goto exit;
 	}
+	TraceLog(LOG_INFO, "bound to socket '%s'", path);
 	if (listen(sockfd, 0) == -1) {
-		fprintf(stderr, "failed to listen socket '%s': %s\n", path, strerror(errno));
+		TraceLog(LOG_ERROR, "failed to listen socket '%s': %s\n", path, strerror(errno));
 		goto exit;
 	}
+	TraceLog(LOG_INFO, "listening to socket '%s'", path);
 
 	for (;;) {
 		int conn = accept(sockfd, (struct sockaddr *) &addr, &addr_len);
 		if (conn == -1) {
-			fprintf(stderr, "failed to accept socket '%s': %s\n", path, strerror(errno));
+			TraceLog(LOG_ERROR, "accepting connection failed: %s", strerror(errno));
 			close(conn);
 			goto exit;
 		}
-	
+		TraceLog(LOG_INFO, "connection accepted");
+
 		uint8_t buf[PACKET_SIZE];
 		memset(buf, 0, sizeof(buf));
 		int n = read(conn, buf, sizeof(buf));
+
+		TraceLog(LOG_INFO, "closing connection");
 		if(close(conn) == -1) {
-			fprintf(stderr, "failed to close conn: %s\n", strerror(errno));
+			TraceLog(LOG_ERROR, "closing connection failed: %s", strerror(errno));
 		}
+
+		TraceLog(LOG_INFO, "read %d bytes", n);
+
 
 		// TODO: closing listener
 		if (n > 0 && buf[0] == 'q') {
+			TraceLog(LOG_INFO, "quitting application");
 			break;
 		}
 
 		Packet *packet = unmarshal(buf);
+		packet_log("unmarshalled payload: %s", *packet);
 		uint8_t *buff = marshal(*packet);
-		free_packet(packet);
+		buf_log("marshalled payload: %s", buff);
+		packet_free(packet);
 		free(buff);
 	}
 
 exit:
-	should_continue(context, true);
+	is_on(context, true);
 	if(close(sockfd) == -1) {
-		fprintf(stderr, "failed to close socket: %s\n", strerror(errno));
+		TraceLog(LOG_ERROR, "failed to close socket: %s\n", strerror(errno));
 	}
 	return 0;
 }
@@ -86,29 +104,3 @@ int main() {
 	}
 	free_context(context);
 }
-
-/*
-int main1() {
-	Packet packet = {.version_minor='1', .version_major='0', .repeat=1, .timer=4.76, .msg=(unsigned char*)"hey"};
-	print_packet(packet);
-	uint8_t *buf = marshal(packet);
-	if (buf == NULL) {
-		fprintf(stderr, "invalid version: got %d.%d, expected %d.%d\n", packet.version_major, packet.version_minor, VERSION_MAJOR, VERSION_MINOR);
-		return 1;
-	}
-	printf(".msg=%s\n", buf+5);
-	for (int i=0;i<METADATA_SIZE;++i) {
-		printf("%u\n", buf[i]);
-	}
-
-	Packet *pckt = unmarshal(buf);
-	if (pckt == NULL) {
-		fprintf(stderr, "failed to unmarshal buf\n");
-		return 1;
-	}
-	print_packet(*pckt);
-
-	free(buf);
-	free_packet(pckt);
-}
-*/
