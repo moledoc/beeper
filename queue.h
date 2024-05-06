@@ -38,6 +38,8 @@ Queue *queue_push(Queue *queue, Packet packet) {
 	next->packet->repeat = packet.repeat;
 	next->packet->timer = packet.timer;
 	mmcp(next->packet->msg, packet.msg, PACKET_SIZE);
+	next->packet->msg_len = packet.msg_len;
+	next->packet->id = packet.id;
 
 	if (queue == NULL) {
 		packet_log("pushing packet to head of queue: %s", next->packet);
@@ -63,6 +65,8 @@ Queue *queue_pop(Queue *queue, Packet *packet) {
 	packet->repeat = queue->packet->repeat;
 	packet->timer = queue->packet->timer;
 	mmcp(packet->msg, queue->packet->msg, PACKET_SIZE);
+	packet->msg_len = queue->packet->msg_len;
+	packet->id = queue->packet->id;
 	packet_free(queue->packet);
 	free(queue);
 	packet_log("popping packet from queue: %s", packet);

@@ -77,7 +77,7 @@ void *sock_listener(void *_) {
 		uint8_t *buff = marshal(*packet);
 		buf_log("marshalled payload: %s", buff);
 
-		packet_log("head of queue: %s", stored_packets_head(context));
+		// packet_log("head of queue: %s", stored_packets_head(context));
 
 		store_packet(context, *packet);
 		stored_packets_log(context);
@@ -97,8 +97,12 @@ exit:
 	return 0;
 }
 
+void beep(Packet *packet) {
+}
+
 int main() {
 	context = init_context();
+	aid = init_atomic_id();
 
 	uint8_t threads_count = 1;
 	pthread_t threads[threads_count];
@@ -109,4 +113,5 @@ int main() {
 		pthread_join(threads[i], NULL);
 	}
 	free_context(context);
+	free_atomic_id(aid);
 }
