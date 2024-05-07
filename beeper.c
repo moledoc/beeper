@@ -23,20 +23,23 @@ int SECOND = 1;
 
 Context *context = NULL;
 
-char *wrap_msg(Packet *packet) {
-	size_t wrapped_msg_len = packet->msg_len+MeasureText((const char *)packet->msg, FONT_SIZE)/W_WIDTH+1+1;
-	char *wrapped_msg = calloc(wrapped_msg_len+1, sizeof(char));
+void my_memcpy(char *dest, char *src, size_t len) {
+	for (int i=0; i<len; ++i) {
+		dest[i] = src[i];
+	}
+}
 
-	int measured_text = MeasureText((const char *)packet->msg, FONT_SIZE);
+void wrap_msg(Packet *packet, char *wrapped_msg) {
+	int measured_text = MeasureText((const char *)(packet->msg), FONT_SIZE);
 	int newline_count = measured_text/W_WIDTH;
 	double avg_char_size = (double)measured_text/(double)packet->msg_len;
 	int line_char_count = W_WIDTH/avg_char_size;
 	for (int i=0; i<newline_count; ++i) {
 		wrapped_msg[(i+1)*line_char_count+i] = '\n';
-		mmcp((uint8_t *)(wrapped_msg+(i*line_char_count)+i), (uint8_t *)(packet->msg+(i*line_char_count)), line_char_count);
+		my_memcpy(wrapped_msg+(i*line_char_count)+i, (char *)(packet->msg+(i*line_char_count)), line_char_count);
 	}
-	mmcp((uint8_t *)(wrapped_msg+(newline_count*line_char_count)+newline_count), (uint8_t *)(packet->msg+(newline_count*line_char_count)), packet->msg_len-(newline_count*line_char_count));
-	return wrapped_msg;
+	my_memcpy(wrapped_msg+(newline_count*line_char_count)+newline_count, (char *)(packet->msg+(newline_count*line_char_count)), packet->msg_len-(newline_count*line_char_count));
+	
 }
 
 // NOTE: maybe slightly hacky to get copy pasting after closing notification for x seconds
@@ -75,12 +78,14 @@ void beep(Packet *packet) {
 	double start_time = GetTime();
 
 	int is_copy_paste = 0;
-	char *wrapped_msg = NULL;
 
 	while (!WindowShouldClose()) {
 		BeginDrawing();
 
-		wrapped_msg = wrap_msg(packet);
+		size_t wrapped_msg_len = packet->msg_len+MeasureText((char *)packet->msg, FONT_SIZE)/W_WIDTH+1+1;
+		char wrapped_msg[wrapped_msg_len+1];
+		my_memset(wrapped_msg, '\0', wrapped_msg_len);
+		wrap_msg(packet, wrapped_msg);
 		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
 
 		if (packet->timer && GetTime()-start_time >= packet->timer) {
@@ -116,9 +121,6 @@ void beep(Packet *packet) {
 	}
 	CloseWindow();
 
-	if (wrapped_msg != NULL) {
-		free(wrapped_msg);
-	}
 	TraceLog(LOG_INFO, "end beep");
 }
 
