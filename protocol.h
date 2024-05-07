@@ -135,7 +135,7 @@ void packet_log(char *format, Packet *packet) {
 }
 
 char *buf_string(uint8_t *buf) {
-	assert(METADATA_SIZE==5);
+	assert(METADATA_SIZE==5 && "metadata size changed, changes required here");
 	char *str = calloc(PACKET_SIZE, sizeof(char));
 	if (str == NULL) {
 		TraceLog(LOG_ERROR, "failed to make buf to string");
@@ -174,8 +174,8 @@ void packet_free(Packet *packet) {
 
 
 uint8_t *marshal(Packet packet) {
-	assert(METADATA_SIZE == 5);
-	assert(PACKET_FIELDS_COUNT == 7);
+	assert(METADATA_SIZE == 5 && "metadata size changed, changes required here");
+	assert(PACKET_FIELDS_COUNT == 7 && "packet fields count changed, changes required here");
 	packet_log("marshalling packet: %s", &packet);
 
 	if (packet.version_major != VERSION_MAJOR) {
@@ -198,8 +198,8 @@ uint8_t *marshal(Packet packet) {
 }
 
 Packet *unmarshal(uint8_t *buf) {
-	assert(METADATA_SIZE == 5);
-	assert(PACKET_FIELDS_COUNT == 7);
+	assert(METADATA_SIZE == 5 && "metadata size changed, changes required here");
+	assert(PACKET_FIELDS_COUNT == 7 && "packet fields count changed, changes required here");
 	uint32_t buf_size = sz(buf);
 	if (buf_size < METADATA_SIZE) {
 		TraceLog(LOG_ERROR, "unmarshal buffer size less than metadata: expected >%d, got %d\n", METADATA_SIZE, buf_size);

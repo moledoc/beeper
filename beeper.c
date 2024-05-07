@@ -10,7 +10,117 @@
 #include "context.h"
 #include "raylib.h"
 
+#define W_HEIGHT 75
+#define W_WIDTH (W_HEIGHT*4)
+#define T_MAG (W_HEIGHT/3)
+#define M_HEIGHT (GetMonitorHeight(0))
+#define M_WIDTH (GetMonitorWidth(0))
+#define FONT_SIZE 13
+
+Color BG_COLOR = { .r = 255, .g = 255, .b = 204, .a = 255}; // very pale yellow
+Color FG_COLOR = { .r = 0, .g = 0, .b = 0, .a = 128}; // black
+int SECOND = 1;
+
 Context *context = NULL;
+
+char *wrap_msg(Packet *packet) {
+	size_t wrapped_msg_len = packet->msg_len+MeasureText((const char *)packet->msg, FONT_SIZE)/W_WIDTH+1+1;
+	char *wrapped_msg = calloc(wrapped_msg_len+1, sizeof(char));
+
+	int measured_text = MeasureText((const char *)packet->msg, FONT_SIZE);
+	int newline_count = measured_text/W_WIDTH;
+	double avg_char_size = (double)measured_text/(double)packet->msg_len;
+	int line_char_count = W_WIDTH/avg_char_size;
+	for (int i=0; i<newline_count; ++i) {
+		wrapped_msg[(i+1)*line_char_count+i] = '\n';
+		mmcp((uint8_t *)(wrapped_msg+(i*line_char_count)+i), (uint8_t *)(packet->msg+(i*line_char_count)), line_char_count);
+	}
+	mmcp((uint8_t *)(wrapped_msg+(newline_count*line_char_count)+newline_count), (uint8_t *)(packet->msg+(newline_count*line_char_count)), packet->msg_len-(newline_count*line_char_count));
+	return wrapped_msg;
+}
+
+// NOTE: maybe slightly hacky to get copy pasting after closing notification for x seconds
+void copy_paste_buffer_time(int buf_time) {
+	SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
+	int buffer_time_start = GetTime();
+	while (GetTime()-buffer_time_start < buf_time) {
+		BeginDrawing();
+		EndDrawing();
+	}
+}
+
+void my_memset(char *dest, char c, size_t len) {
+	for (int i=0; i<len; ++i) {
+		dest[i] = c;
+	}
+}
+
+void beep(Packet *packet) {
+	TraceLog(LOG_INFO, "start beep");
+
+	char win_name[32];
+	my_memset(win_name, '\0', sizeof(win_name));
+	snprintf(win_name, 32, "beep%d", packet->id);
+	InitWindow(W_WIDTH, W_HEIGHT, win_name);
+	SetTargetFPS(30);
+	ClearWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
+	SetWindowState(FLAG_WINDOW_UNDECORATED);
+	SetExitKey(KEY_Q);
+	SetWindowMonitor(0);
+	SetWindowPosition(M_WIDTH/10-W_WIDTH/2, M_HEIGHT/10-W_HEIGHT/2);
+	SetTextLineSpacing(FONT_SIZE);
+
+	ClearBackground(BG_COLOR);
+
+	double start_time = GetTime();
+
+	int is_copy_paste = 0;
+	char *wrapped_msg = NULL;
+
+	while (!WindowShouldClose()) {
+		BeginDrawing();
+
+		wrapped_msg = wrap_msg(packet);
+		DrawText(wrapped_msg, W_WIDTH/(T_MAG*2), W_HEIGHT/(T_MAG), FONT_SIZE, FG_COLOR);
+
+		if (packet->timer && GetTime()-start_time >= packet->timer) {
+			if (packet->repeat) {
+				store_packet(context, *packet);
+			}
+			break;
+		}
+
+		Vector2 mouse_pos = GetMousePosition();
+		if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && 
+			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
+			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
+			break;
+		} else if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE) && 
+			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
+			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
+			SetClipboardText((const char *)packet->msg);
+			is_copy_paste = 1;
+			break;
+		} else if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && 
+			0 <= mouse_pos.x && mouse_pos.x <= W_WIDTH &&
+			0 <= mouse_pos.y && mouse_pos.y <= W_HEIGHT) {
+			store_packet(context, *packet);
+			stored_packets_log(context);
+			break;
+		}
+		EndDrawing();
+	}
+	SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
+	if (is_copy_paste) {
+		copy_paste_buffer_time(5*SECOND);
+	}
+	CloseWindow();
+
+	if (wrapped_msg != NULL) {
+		free(wrapped_msg);
+	}
+	TraceLog(LOG_INFO, "end beep");
+}
 
 void *sock_listener(void *_) {
 	char *path = "/tmp/beeper.sock";
@@ -73,20 +183,21 @@ void *sock_listener(void *_) {
 		}
 
 		Packet *packet = unmarshal(buf);
-		packet_log("unmarshalled payload: %s", packet);
-		uint8_t *buff = marshal(*packet);
-		buf_log("marshalled payload: %s", buff);
+		beep(packet);
+		// packet_log("unmarshalled payload: %s", packet);
+		// uint8_t *buff = marshal(*packet);
+		// buf_log("marshalled payload: %s", buff);
 
 		// packet_log("head of queue: %s", stored_packets_head(context));
 
-		store_packet(context, *packet);
-		stored_packets_log(context);
+		// store_packet(context, *packet);
+		// stored_packets_log(context);
 
 		// pop_packet(context);
 		// stored_packets_log(context);
 
 		packet_free(packet);
-		free(buff);
+		// free(buff);
 	}
 
 exit:
@@ -95,9 +206,6 @@ exit:
 		TraceLog(LOG_ERROR, "failed to close socket: %s\n", strerror(errno));
 	}
 	return 0;
-}
-
-void beep(Packet *packet) {
 }
 
 int main() {
