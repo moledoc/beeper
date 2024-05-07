@@ -127,9 +127,9 @@ void *sock_listener(void *_) {
 	TraceLog(LOG_INFO, "start listening to socket '%s'", path);
 	int unlnk = unlink(path);
 	if (unlnk == -1) {
-		TraceLog(LOG_ERROR, "failed to unlink '%s': %s", path, strerror(errno));
-		is_on(context, true);
-		return 0;
+		TraceLog(LOG_WARNING, "failed to unlink '%s': %s", path, strerror(errno));
+		// should_shutdown(context, true);
+		// return 0;
 	}
 		
 	int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -201,10 +201,29 @@ void *sock_listener(void *_) {
 	}
 
 exit:
-	is_on(context, true);
+	should_shutdown(context, true);
 	if(close(sockfd) == -1) {
 		TraceLog(LOG_ERROR, "failed to close socket: %s\n", strerror(errno));
 	}
+	return 0;
+}
+
+void *pager(void *_) {
+	for (;;) {
+		Packet *packet = pop_packet(context);
+		packet_log("popped packet: %s", packet);
+		if (packet != NULL && *(packet->msg) != '\0') { // HACK: FIXME:
+			beep(packet);
+		}
+		if (packet != NULL) {
+			packet_free(packet);
+		}
+		if (should_shutdown(context, false)) {
+			break;
+		}
+		sleep(2);
+	}
+	should_shutdown(context, true);
 	return 0;
 }
 
@@ -212,10 +231,11 @@ int main() {
 	context = init_context();
 	aid = init_atomic_id();
 
-	uint8_t threads_count = 1;
+	uint8_t threads_count = 2;
 	pthread_t threads[threads_count];
 
 	pthread_create(&threads[0], NULL, sock_listener, NULL);
+	pthread_create(&threads[1], NULL, pager, NULL);
 	
 	for (int i=0; i<threads_count; ++i) {
 		pthread_join(threads[i], NULL);

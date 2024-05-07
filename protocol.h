@@ -92,8 +92,6 @@ void buf_log(char *format, uint8_t *buf);
 void packet_free(Packet *packet);
 uint8_t *marshal(Packet packet); // allocs memory
 Packet *unmarshal(uint8_t *buf); // allocs memory
-void proto_send(); // TODO:
-void proto_receive(); // TODO:
 
 char *packet_string(Packet packet) {
 	char *str = calloc(512, sizeof(char));
