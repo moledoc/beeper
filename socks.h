@@ -22,10 +22,6 @@ int valid_version(uint8_t *buf);
 #ifndef SOCK_VARS
 #define SOCK_VARS
 
-
-uint8_t version_major = '0';
-uint8_t version_minor = '1';
-
 const char *sock_path = "/tmp/beepd.sock";
 
 struct sockaddr_un server_addr;

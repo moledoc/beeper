@@ -17,8 +17,17 @@ int main(void) {
 	Beep *beep = unmarshal_beep(buf);
 	free_buf(buf);
 
-	print_beep(beep);
-	free_beep(beep);
+	// print_beep(beep);
+
+	BeepQueue *queue = NULL;
+	queue = queue_push(queue, beep);
+	queue = queue_push(queue, beep);
+	queue = queue_push(queue, beep);
+	print_queue(queue);
+	print_beep(queue_head(queue));
+	queue = queue_pop(queue);
+	print_queue(queue);
+
 
 	close(sockfd);
 }
