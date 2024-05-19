@@ -89,7 +89,7 @@ exit:
 
 void server_handle(int sockfd) {
 	int conn;
-	uint8_t write_buf[metadata_size+1+1];
+	char *msg;
 
 	if ((conn = accept(sockfd, (struct sockaddr *) &server_addr, &server_addr_len)) == -1) {
 		goto exit;
@@ -106,36 +106,27 @@ void server_handle(int sockfd) {
 	if (!valid_version(read_buf)) {
 		goto invalid_version;
 	}
-	printf("%s\n", read_buf);
 
 	// TODO: unmarshal messages
 	// TODO: marshal response
 	// MAYBE: TODO: send response
-	write_buf[version_major_idx] = version_major;
-	write_buf[version_minor_idx] = version_minor;
-	write_buf[metadata_size] = '1';
 
+	fprintf(stderr, "%s\n", read_buf);
+	msg = "success";
 	goto response;
 
 // TODO: better responses
 invalid_msg_size:
-	char *msg = "not enough metadata sent\n";
-	fprintf(stderr, msg);
-	write(conn, msg, sizeof(msg));
-	goto exit;
+	msg = "not enough metadata sent";
+	goto response;
 
 invalid_version:
-	memset(write_buf, 0, sizeof(write_buf));
-	// use the communication version found in read buffer
-	write_buf[version_major_idx] = read_buf[version_major_idx];
-	write_buf[version_minor_idx] = read_buf[version_minor_idx];
-	write_buf[metadata_size] = '0';
-
+	msg = "invalid version";
 	goto response;
 
 response:
-	write_buf[metadata_size+1] = '\0';
-	write(conn, write_buf, sizeof(write_buf));
+	fprintf(stderr, "%s\n", msg);
+	write(conn, msg, strlen(msg));
 	goto exit;
 
 exit:
@@ -173,18 +164,15 @@ void client_handle(int sockfd, char *msg) {
 	free(enhanced_msg);
 
 	// TODO: unmarshal response
-	char buf[metadata_size+1+1];
+	char buf[512];
 	memset(buf, 0, sizeof(buf));
 	int n = read(sockfd, buf, sizeof(buf));
-	if (n < sizeof(buf)) {
-		buf[n] = '\0';
-	}
-	printf("is successful: %s\n", buf+metadata_size);
+	printf("response: %s\n", buf);
 
 	goto exit;
 
 cleanup:
-	fprintf(stderr, "%s\n", strerror(errno));
+	fprintf(stderr, "cleanup: %s\n", strerror(errno));
 	goto exit;
 exit:
 	return;
