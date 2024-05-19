@@ -84,8 +84,9 @@ uint8_t *server_handle(int sockfd) {
 	if ((conn = accept(sockfd, (struct sockaddr *) &server_addr, &server_addr_len)) == -1) {
 		goto exit;
 	}
-	buf = calloc(1024, sizeof(uint8_t));
-	int n = read(conn, buf, sizeof(buf));
+	size_t buf_size = 1024;
+	buf = calloc(buf_size, sizeof(uint8_t));
+	int n = read(conn, buf, buf_size);
 	if (n < sizeof(buf)) {
 		buf[n] = '\0';
 	}

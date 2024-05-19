@@ -45,6 +45,12 @@ int valid_version(uint8_t *buf) {
 #ifndef BEEP_IMPLEMENTATION
 #define BEEP_IMPLEMENTATION
 
+void free_buf(uint8_t *buf) {
+	if (buf != NULL) {
+		free(buf);
+	}
+}
+
 void free_beep(Beep *beep) {
 	if (beep == NULL) {
 		return;
@@ -95,9 +101,9 @@ uint8_t *marshal_beep(Beep *beep) { // allocs memory
 	uint8_t *buf = calloc(sizeof(Beep)+beep->label_len+beep->msg_len, sizeof(uint8_t));
 	buf[version_major_idx] = beep->version_major;
 	buf[version_minor_idx] = beep->version_minor;
-	buf[msg_start_idx] = beep->label_len;
+	buf[msg_start_idx] = beep->label_len+'0';
 	strncpy(buf+msg_start_idx+1, beep->label, beep->label_len);
-	buf[msg_start_idx+beep->label_len+1] = beep->msg_len;
+	buf[msg_start_idx+beep->label_len+1] = beep->msg_len+'0';
 	strncpy(buf+msg_start_idx+1+beep->label_len+1, beep->msg, beep->msg_len);
 	return buf;
 }
@@ -106,17 +112,18 @@ Beep *unmarshal_beep(uint8_t *buf) { // allocs memory
 	if (buf == NULL) {
 		return NULL;
 	}
+	
 	Beep *beep = calloc(1, sizeof(Beep));
 
-	beep->label_len = buf[0];
+	beep->version_major = buf[version_major_idx];
+	beep->version_minor = buf[version_minor_idx];
+	beep->label_len = buf[msg_start_idx]-'0';
 	beep->label = calloc(beep->label_len+1, sizeof(unsigned char));
-	strncpy(beep->label, buf+1, beep->label_len);
+	strncpy(beep->label, buf+msg_start_idx+1, beep->label_len);
 
-	beep->label_len = buf[1+beep->label_len];
+	beep->msg_len = buf[msg_start_idx+1+beep->label_len]-'0';
 	beep->msg = calloc(beep->msg_len+1, sizeof(unsigned char));
-	strncpy(beep->msg, buf+1+beep->label_len+1, beep->msg_len);
-
-	print_beep(beep);
+	strncpy(beep->msg, buf+msg_start_idx+1+beep->label_len+1, beep->msg_len);
 	return beep;
 }
 
