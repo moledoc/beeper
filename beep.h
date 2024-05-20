@@ -157,7 +157,7 @@ Beeps init_array(); // allocs memory
 void free_array(Beeps beeps);
 void print_array(Beeps beeps);
 
-void push_to_array(Beeps beeps, Beep *beep);
+Beeps push_to_array(Beeps beeps, Beep *beep);
 void rm_from_array(Beeps beeps, Beep *beep);
 Beep *find_from_array(Beeps beeps, char *label);
 
@@ -165,11 +165,16 @@ Beep *find_from_array(Beeps beeps, char *label);
 
 #ifndef BEEP_ARRAY_IMPLEMENTATION
 #define BEEP_ARRAY_IMPLEMENTATION
+#include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+uint16_t beeps_size = (uint16_t)(1 * sizeof(Beep *));
+
 Beeps init_array() {
-  Beeps beeps = calloc(32, sizeof(Beep *));
+  Beeps beeps = malloc(beeps_size);
+  memset(beeps, 0, sizeof(beeps));
   return beeps;
 }
 
@@ -196,19 +201,30 @@ void print_array(Beeps beeps) {
   print_beep(NULL);
 }
 
-void push_to_array(Beeps beeps, Beep *beep) {
+Beeps push_to_array(Beeps beeps, Beep *beep) {
   if (beeps == NULL) {
     // MAYBE: TODO: handle better
-    return;
+    return NULL;
   }
-  for (int i = 0; beeps != NULL && (*beeps) != NULL; ++beeps, ++i) {
+  Beeps start = beeps;
+  uint16_t i = 0;
+  for (; i < beeps_size && beeps != NULL && (*beeps) != NULL; ++beeps, ++i) {
     if ((*beeps) == beep || strcmp(beep->label, (*beeps)->label) == 0) {
       fprintf(stderr, "replacing %p with %p (label: '%s'), msg: '%s'\n", *beeps,
               beep, beep->label, beep->msg);
       break;
     }
   }
-  (*beeps) = beep;
+  if (i >= beeps_size / sizeof(Beep *) || beeps == NULL) {
+    beeps_size *= 2;
+    fprintf(stderr, "beeps size %d not enough, doubling; new size: %d\n",
+            beeps_size / 2 / sizeof(Beep *), beeps_size / sizeof(Beep *));
+    start = realloc(start, beeps_size);
+    assert(start != NULL && "realloc failed, panic!");
+    memset(start + i, 0, beeps_size - (i * sizeof(Beep *)));
+  }
+  (*(start + i)) = beep;
+  return start;
 }
 
 void rm_from_array(Beeps beeps, Beep *beep) {

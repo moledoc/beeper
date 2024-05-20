@@ -22,22 +22,30 @@ int main(void) {
   Beep *beep3 = unmarshal_beep(buf);
   strncpy(beep3->label, "lal", 3);
 
+  Beep *beep4 = unmarshal_beep(buf);
+  strncpy(beep4->label, "gag", 3);
+
+  Beep *beep5 = unmarshal_beep(buf);
+  strncpy(beep5->label, "aaa", 3);
+
   free_buf(buf);
 
   // print_beep(beep);
 
   Beeps arr = init_array();
-  push_to_array(arr, beep1);
-  push_to_array(arr, beep2);
-  push_to_array(arr, beep3);
+  arr = push_to_array(arr, beep1);
+  arr = push_to_array(arr, beep2);
+  arr = push_to_array(arr, beep3);
+  arr = push_to_array(arr, beep4);
+  arr = push_to_array(arr, beep5);
   print_array(arr);
 
-  Beep *haha = find_from_array(arr, beep2->label);
-  print_beep(haha);
+  Beep *bp = find_from_array(arr, beep2->label);
+  print_beep(bp);
   rm_from_array(arr, beep2);
 
+exit:
   print_array(arr);
-
   free_array(arr);
 
   /*
