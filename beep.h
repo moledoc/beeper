@@ -166,11 +166,13 @@ Beep *find_from_array(Beeps beeps, char *label);
 #ifndef BEEP_ARRAY_IMPLEMENTATION
 #define BEEP_ARRAY_IMPLEMENTATION
 #include <assert.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 uint16_t beeps_size = (uint16_t)(1 * sizeof(Beep *));
+pthread_mutex_t Beeps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 Beeps init_array() {
   Beeps beeps = malloc(beeps_size);
@@ -179,19 +181,24 @@ Beeps init_array() {
 }
 
 void free_array(Beeps beeps) {
+  pthread_mutex_lock(&Beeps_mutex);
   if (beeps == NULL) {
-    return;
+    goto exit;
   }
   Beeps cur;
   for (cur = beeps; cur != NULL && (*cur) != NULL; ++cur) {
     free_beep(*cur);
   }
   free(beeps);
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return;
 }
 
 void print_array(Beeps beeps) {
+  pthread_mutex_lock(&Beeps_mutex);
   if (beeps == NULL) {
-    return;
+    goto exit;
   }
   for (; (*beeps) != NULL; ++beeps) {
     fprintf(stderr, "-> ");
@@ -199,14 +206,18 @@ void print_array(Beeps beeps) {
   }
   fprintf(stderr, "-> ");
   print_beep(NULL);
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return;
 }
 
 Beeps push_to_array(Beeps beeps, Beep *beep) {
+  pthread_mutex_lock(&Beeps_mutex);
+  Beeps start = beeps;
   if (beeps == NULL) {
     // MAYBE: TODO: handle better
-    return NULL;
+    goto exit;
   }
-  Beeps start = beeps;
   uint16_t i = 0;
   for (; i < beeps_size && beeps != NULL && (*beeps) != NULL; ++beeps, ++i) {
     if ((*beeps) == beep || strcmp(beep->label, (*beeps)->label) == 0) {
@@ -224,12 +235,15 @@ Beeps push_to_array(Beeps beeps, Beep *beep) {
     memset(start + i, 0, beeps_size - (i * sizeof(Beep *)));
   }
   (*(start + i)) = beep;
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
   return start;
 }
 
 void rm_from_array(Beeps beeps, Beep *beep) {
+  pthread_mutex_lock(&Beeps_mutex);
   if (beeps == NULL || beep == NULL) {
-    return;
+    goto exit;
   }
   int i = 0;
   for (; beeps[i] != NULL; ++i) {
@@ -245,20 +259,28 @@ void rm_from_array(Beeps beeps, Beep *beep) {
     beeps[j - 1] = beeps[j];
     beeps[j] = NULL;
   }
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return;
 }
 
 Beep *find_from_array(Beeps beeps, char *label) {
+  pthread_mutex_lock(&Beeps_mutex);
+  Beep *ret = NULL;
   if (beeps == NULL) {
     // MAYBE: TODO: handle better
-    return NULL;
+    goto exit;
   }
 
   for (int i = 0; beeps != NULL && (*beeps) != NULL; ++beeps, ++i) {
     if (strcmp(label, (*beeps)->label) == 0) {
-      return (*beeps);
+      ret = *beeps;
+      goto exit;
     }
   }
-  return NULL;
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return ret;
 }
 
 #endif // BEEP_ARRAY_IMPLEMENTATION
