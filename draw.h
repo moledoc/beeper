@@ -18,7 +18,7 @@ Color FG_COLOR = {.r = 0, .g = 0, .b = 0, .a = 255};       // black
 int SECOND = 1;
 
 // void wrap_msg(Beep *beep, char *wrapped_msg);
-void draw(Beeps beep);
+void *draw(void *b);
 
 #endif // DRAW_H_
 
@@ -44,7 +44,9 @@ bp->msg_len-(newline_count*line_char_count));
 }
 */
 
-void draw(Beeps beeps) {
+void *draw(void *b) {
+  Beeps beeps = *(Beeps *)(b);
+  fprintf(stderr, "[DEBUG]: [DRAW]: beeps %p\n", beeps);
   InitWindow(W_WIDTH, W_HEIGHT, "beeper");
   SetTargetFPS(30);
   SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
@@ -55,15 +57,15 @@ void draw(Beeps beeps) {
 
   ClearBackground(BLANK);
 
-  double start_time = GetTime();
-
   while (!WindowShouldClose()) {
+    if (graceful_shutdown(false)) {
+      break;
+    }
     Beep *beep = head_of_array(beeps);
     if (beep == NULL) {
       if (!IsWindowState(FLAG_WINDOW_HIDDEN)) {
         SetWindowState(FLAG_WINDOW_HIDDEN);
       }
-      break; // REMOVEME:
       continue;
     }
 

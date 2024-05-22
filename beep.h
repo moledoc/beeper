@@ -150,9 +150,12 @@ Beep *unmarshal_beep(uint8_t *buf) { // allocs memory
 
 #ifndef BEEP_ARRAY_H_
 #define BEEP_ARRAY_H_
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef Beep **Beeps;
+
+bool graceful_shutdown(bool shutdown);
 
 Beeps init_array(); // allocs memory
 void free_array(Beeps beeps);
@@ -171,6 +174,7 @@ Beep *head_of_array(Beeps beeps);
 #define BEEP_ARRAY_IMPLEMENTATION
 #include <assert.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -178,10 +182,22 @@ Beep *head_of_array(Beeps beeps);
 uint16_t beeps_size = (uint16_t)(1 * sizeof(Beep *));
 pthread_mutex_t Beeps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+bool shutting_down = false;
+pthread_mutex_t graceful_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 Beeps init_array() {
   Beeps beeps = malloc(beeps_size);
   memset(beeps, 0, sizeof(beeps));
   return beeps;
+}
+
+bool graceful_shutdown(bool shutdown) {
+  pthread_mutex_lock(&graceful_mutex);
+  if (shutdown) {
+    shutting_down = shutdown;
+  }
+  pthread_mutex_unlock(&graceful_mutex);
+  return shutting_down;
 }
 
 void free_array(Beeps beeps) {
@@ -201,6 +217,7 @@ exit:
 
 void print_array(Beeps beeps) {
   pthread_mutex_lock(&Beeps_mutex);
+  fprintf(stderr, "[DEBUG] beeps %p\n", beeps);
   if (beeps == NULL) {
     goto exit;
   }

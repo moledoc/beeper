@@ -1,28 +1,37 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "socks.h"
 #include "beep.h"
+#include "socks.h"
 
 int main(int argc, char **argv) {
-	int sockfd = client_setup();
-	if (sockfd == -1) {
-		return 1;
-	}
-	printf("sockfd: %d\n", sockfd);
+  int sockfd = client_setup();
+  if (sockfd == -1) {
+    return 1;
+  }
+  printf("sockfd: %d\n", sockfd);
 
-	Beep beep = {.version_major=version_major, .version_minor=version_minor, .label="hey", .msg="heeehoo"};
-	beep.label_len=strlen(beep.label);
-	beep.msg_len=strlen(beep.msg);
+  uint8_t *msg;
+  if (argc == 2) {
+    msg = (uint8_t *)argv[1];
+  } else {
+    msg = (uint8_t *)"default";
+  }
+  Beep beep = {.version_major = version_major,
+               .version_minor = version_minor,
+               .label = msg, // TODO: CHANGEME:
+               .msg = msg};
+  beep.label_len = strlen(beep.label);
+  beep.msg_len = strlen(beep.msg);
 
-	print_beep(&beep);
+  print_beep(&beep);
 
-	uint8_t *msg = marshal_beep(&beep);
-	printf("msg: %s\n", msg);
+  uint8_t *data = marshal_beep(&beep);
+  printf("msg: %s\n", data);
 
-	client_handle(sockfd, msg);
+  client_handle(sockfd, data);
 
-	free(msg);
-	close(sockfd);
-	return 0;
+  free(data);
+  close(sockfd);
+  return 0;
 }
