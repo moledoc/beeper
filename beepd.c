@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "beep.h"
+#include "draw.h"
 #include "socks.h"
 
 int main(void) {
@@ -18,15 +19,19 @@ int main(void) {
 
   Beep *beep2 = unmarshal_beep(buf);
   strncpy(beep2->label, "hap", 3);
+  strncpy(beep2->msg, "tereeee", 7);
 
   Beep *beep3 = unmarshal_beep(buf);
   strncpy(beep3->label, "lal", 3);
+  strncpy(beep3->msg, "hahahah", 7);
 
   Beep *beep4 = unmarshal_beep(buf);
   strncpy(beep4->label, "gag", 3);
+  strncpy(beep4->msg, "gisldks", 7);
 
   Beep *beep5 = unmarshal_beep(buf);
   strncpy(beep5->label, "aaa", 3);
+  strncpy(beep5->msg, "aaaaaaa", 7);
 
   free_buf(buf);
 
@@ -40,9 +45,13 @@ int main(void) {
   arr = push_to_array(arr, beep5);
   print_array(arr);
 
-  Beep *bp = find_from_array(arr, beep2->label);
-  print_beep(bp);
-  rm_from_array(arr, beep2);
+  /*
+    Beep *bp = find_from_array(arr, beep2->label);
+    print_beep(bp);
+    rm_from_array(arr, beep2);
+  */
+
+  draw(arr);
 
 exit:
   print_array(arr);

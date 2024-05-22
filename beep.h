@@ -150,6 +150,7 @@ Beep *unmarshal_beep(uint8_t *buf) { // allocs memory
 
 #ifndef BEEP_ARRAY_H_
 #define BEEP_ARRAY_H_
+#include <stdint.h>
 
 typedef Beep **Beeps;
 
@@ -157,9 +158,12 @@ Beeps init_array(); // allocs memory
 void free_array(Beeps beeps);
 void print_array(Beeps beeps);
 
+uint16_t beeps_count(Beeps beeps);
 Beeps push_to_array(Beeps beeps, Beep *beep);
 void rm_from_array(Beeps beeps, Beep *beep);
+void mv_to_end(Beeps beeps, Beep *beep);
 Beep *find_from_array(Beeps beeps, char *label);
+Beep *head_of_array(Beeps beeps);
 
 #endif // BEEP_ARRAY_H_
 
@@ -209,6 +213,20 @@ void print_array(Beeps beeps) {
 exit:
   pthread_mutex_unlock(&Beeps_mutex);
   return;
+}
+
+uint16_t beeps_count(Beeps beeps) {
+  uint16_t count = 0;
+  pthread_mutex_lock(&Beeps_mutex);
+  if (beeps == NULL || *beeps == NULL) {
+    goto exit;
+  }
+  for (; beeps != NULL && *beeps != NULL; ++beeps, ++count) {
+    ;
+  }
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return count;
 }
 
 Beeps push_to_array(Beeps beeps, Beep *beep) {
@@ -264,6 +282,32 @@ exit:
   return;
 }
 
+void mv_to_end(Beeps beeps, Beep *beep) {
+  pthread_mutex_lock(&Beeps_mutex);
+  if (beeps == NULL || beep == NULL) {
+    goto exit;
+  }
+  int i = 0;
+  for (; beeps[i] != NULL; ++i) {
+    if (beeps[i] == beep || strcmp(beeps[i]->label, beep->label) == 0) {
+      break;
+    }
+  }
+  fprintf(stderr, "moving to end %p (label: '%s') msg: '%s'\n", beeps[i],
+          beeps[i]->label, beeps[i]->msg);
+  Beep *new_last = beeps[i];
+  beeps[i] = NULL;
+  int j = i + 1;
+  for (; beeps[j] != NULL; ++j) {
+    beeps[j - 1] = beeps[j];
+    beeps[j] = NULL;
+  }
+  beeps[j - 1] = new_last;
+exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return;
+}
+
 Beep *find_from_array(Beeps beeps, char *label) {
   pthread_mutex_lock(&Beeps_mutex);
   Beep *ret = NULL;
@@ -279,6 +323,13 @@ Beep *find_from_array(Beeps beeps, char *label) {
     }
   }
 exit:
+  pthread_mutex_unlock(&Beeps_mutex);
+  return ret;
+}
+
+Beep *head_of_array(Beeps beeps) {
+  pthread_mutex_lock(&Beeps_mutex);
+  Beep *ret = beeps == NULL ? NULL : *beeps;
   pthread_mutex_unlock(&Beeps_mutex);
   return ret;
 }
