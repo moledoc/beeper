@@ -27,6 +27,7 @@ int main(void) {
 
     Beep *beep = unmarshal_beep(buf);
     if (strcmp(beep->msg, "q") == 0) {
+      graceful_shutdown(true);
       break;
     }
     arr = push_to_array(arr, beep);

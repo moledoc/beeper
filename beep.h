@@ -179,7 +179,7 @@ Beep *head_of_array(Beeps beeps);
 #include <stdlib.h>
 #include <string.h>
 
-uint16_t beeps_size = (uint16_t)(1 * sizeof(Beep *));
+uint16_t beeps_size = (uint16_t)(5 * sizeof(Beep *));
 pthread_mutex_t Beeps_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 bool shutting_down = false;

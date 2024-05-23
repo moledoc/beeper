@@ -48,9 +48,9 @@ void *draw(void *b) {
   Beeps beeps = *(Beeps *)(b);
   fprintf(stderr, "[DEBUG]: [DRAW]: beeps %p\n", beeps);
   InitWindow(W_WIDTH, W_HEIGHT, "beeper");
+  SetWindowState(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_UNDECORATED);
   SetTargetFPS(30);
-  SetWindowState(FLAG_WINDOW_UNDECORATED | FLAG_WINDOW_HIDDEN);
-  SetExitKey(KEY_Q);
+  // SetExitKey(KEY_Q);
   SetWindowMonitor(0);
   SetWindowPosition(M_WIDTH / 10 - W_WIDTH / 2, M_HEIGHT / 10 - W_HEIGHT / 2);
   SetTextLineSpacing(FONT_SIZE);
@@ -63,13 +63,13 @@ void *draw(void *b) {
     }
     Beep *beep = head_of_array(beeps);
     if (beep == NULL) {
-      if (!IsWindowState(FLAG_WINDOW_HIDDEN)) {
+      if (!IsWindowHidden()) {
         SetWindowState(FLAG_WINDOW_HIDDEN);
       }
       continue;
     }
 
-    if (IsWindowState(FLAG_WINDOW_HIDDEN)) {
+    if (IsWindowHidden()) {
       ClearWindowState(FLAG_WINDOW_HIDDEN);
     }
 
@@ -86,10 +86,7 @@ void *draw(void *b) {
     DrawText(count, x - MeasureText(count, FONT_SIZE) / 2, y - FONT_SIZE / 2,
              FONT_SIZE, FG_COLOR);
 
-    char msg[256];
-    memset(msg, '\0', sizeof(msg));
-    memcpy(msg, beep->msg, beep->msg_len);
-    DrawText(msg, W_WIDTH / (T_MAG * 2), W_HEIGHT / (T_MAG), FONT_SIZE,
+    DrawText(beep->msg, W_WIDTH / (T_MAG * 2), W_HEIGHT / (T_MAG), FONT_SIZE,
              FG_COLOR);
 
     Vector2 mouse_pos = GetMousePosition();
