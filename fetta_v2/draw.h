@@ -48,7 +48,8 @@ void *draw(void *b) {
   Beeps beeps = *(Beeps *)(b);
   fprintf(stderr, "[DEBUG]: [DRAW]: beeps %p\n", beeps);
   InitWindow(W_WIDTH, W_HEIGHT, "beeper");
-  SetWindowState(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_UNDECORATED);
+  SetWindowState(FLAG_WINDOW_HIDDEN | FLAG_WINDOW_UNDECORATED |
+                 FLAG_WINDOW_UNFOCUSED);
   SetTargetFPS(30);
   // SetExitKey(KEY_Q);
   SetWindowMonitor(0);
