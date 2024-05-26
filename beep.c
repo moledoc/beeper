@@ -6,6 +6,7 @@
 #define SOCK_IMPLEMENTATION
 #include "sock.h"
 
+#define BEEP_CONST
 #define BEEP_IMPLEMENTATION
 #include "beep.h"
 
@@ -22,10 +23,17 @@ int main(int argc, char **argv) {
         strcmp("help", argv[i]) == 0) {
       help();
       return 0;
-    } else if (strcmp("-l", argv[i]) == 0) {
+    } else if (strcmp("-l", argv[i]) == 0 || strcmp("--label", argv[i]) == 0) {
       size_t label_len = strlen(argv[i]);
       label = calloc(label_len, sizeof(char));
       memcpy(label, argv[i], label_len);
+    } else if (strcmp("-m", argv[i]) == 0 || strcmp("--msg", argv[i]) == 0) {
+      size_t msg_len = strlen(argv[i]);
+      msg = calloc(msg_len, sizeof(char));
+      memcpy(msg, argv[i], msg_len);
+    } else {
+      fprintf(stderr, "invalid argument '%s' provided\n", argv[i]);
+      return 1;
     }
   }
 

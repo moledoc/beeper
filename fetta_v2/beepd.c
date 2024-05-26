@@ -1,9 +1,9 @@
 #include <pthread.h>
 #include <stdio.h>
 
+#include "./socks.h"
 #include "beep.h"
 #include "draw.h"
-#include "socks.h"
 
 int main(void) {
   int sockfd = server_setup();

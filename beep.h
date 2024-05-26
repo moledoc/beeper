@@ -45,8 +45,9 @@ typedef char *beep_buf;
 
 int valid_version_buf(const beep_buf buf);
 void buf_print(const beep_buf buf);
-int buf_len(const beep_buf buf);
-Beep *unmarshal(const beep_buf buf); // allocs memory
+size_t buf_len(const beep_buf buf);
+char *buf_to_str(const beep_buf buf); // allocs memory
+Beep *unmarshal(const beep_buf buf);  // allocs memory
 
 #endif // BEEP_H_
 
@@ -189,7 +190,7 @@ void buf_print(beep_buf buf) {
           msg_len, msg);
 }
 
-int buf_len(beep_buf buf) {
+size_t buf_len(beep_buf buf) {
   assert(metadata_size == 3 && "finding buf len needs extending");
 
   int version_len = msg_start_idx;
@@ -198,6 +199,29 @@ int buf_len(beep_buf buf) {
       buf[msg_start_idx + label_len] + 1; // include the msg_len into the var
 
   return version_len + label_len + msg_len;
+}
+
+char *buf_to_str(const beep_buf buf) {
+  assert(metadata_size == 3 && "buf to string needs extending");
+
+  int ver_major = buf[version_major_idx];
+  int ver_minor = buf[version_minor_idx];
+
+  int label_len = buf[msg_start_idx];
+  char label[label_len + 1];
+  memset(label, '\0', sizeof(label));
+  memcpy(label, buf + msg_start_idx + 1, label_len);
+
+  int msg_len = buf[msg_start_idx + label_len];
+  char msg[msg_len + 1];
+  memset(msg, '\0', sizeof(msg));
+  memcpy(msg, buf + msg_start_idx + label_len + 1, msg_len);
+
+  size_t str_len = msg_start_idx + label_len + msg_len + 2;
+  char *str = calloc(str_len, sizeof(char));
+  snprintf(str, str_len, "%d%d%d%s%d%s\n", ver_major, ver_minor, label_len,
+           label, msg_len, msg);
+  return str;
 }
 
 #endif // BEEP_IMPLEMENTATION
