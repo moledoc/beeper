@@ -10,12 +10,21 @@
 #define BEEP_IMPLEMENTATION
 #include "beep.h"
 
-void help() { fprintf(stdout, "TODO:\n"); }
+void help() {
+  char *help_msg = "TODO:\n";
+#ifdef TESTING
+  write(TESTING, help_msg, strlen(help_msg));
+#else
+  fprintf(stdout, help_msg);
+#endif
+}
 
 int main(int argc, char **argv) {
 
   char *label = NULL;
   char *msg = NULL;
+  char *request_buf = NULL;
+  Beep *beep = NULL;
   int ret_val = 0;
 
   for (int i = 1; i < argc; ++i) {
@@ -23,18 +32,37 @@ int main(int argc, char **argv) {
         strcmp("help", argv[i]) == 0) {
       help();
       return 0;
-    } else if (strcmp("-l", argv[i]) == 0 || strcmp("--label", argv[i]) == 0) {
-      size_t label_len = strlen(argv[i]);
+    } else if (strcmp("-q", argv[i]) == 0 || strcmp("--quit", argv[i]) == 0 ||
+               strcmp("quit", argv[i]) == 0) {
+      label = calloc(1, sizeof(char));
+      strncpy(label, "q", 1 * sizeof(char));
+      msg = calloc(1, sizeof(char));
+      strncpy(msg, "q", 1 * sizeof(char));
+      break;
+    } else if ((strcmp("-l", argv[i]) == 0 ||
+                strcmp("--label", argv[i]) == 0) &&
+               i + 1 < argc) {
+      size_t label_len = strlen(argv[i + 1]);
       label = calloc(label_len, sizeof(char));
-      memcpy(label, argv[i], label_len);
-    } else if (strcmp("-m", argv[i]) == 0 || strcmp("--msg", argv[i]) == 0) {
-      size_t msg_len = strlen(argv[i]);
+      memcpy(label, argv[i + 1], label_len);
+      ++i;
+    } else if ((strcmp("-m", argv[i]) == 0 || strcmp("--msg", argv[i]) == 0) &&
+               i + 1 < argc) {
+      size_t msg_len = strlen(argv[i + 1]);
       msg = calloc(msg_len, sizeof(char));
-      memcpy(msg, argv[i], msg_len);
+      memcpy(msg, argv[i + 1], msg_len);
+      ++i;
     } else {
       fprintf(stderr, "invalid argument '%s' provided\n", argv[i]);
       return 1;
     }
+  }
+
+  if (strcmp("", label) == 0) {
+    label = "beep";
+  }
+  if (strcmp("", msg) == 0) {
+    fprintf(stderr, "empty message not allowed\n");
   }
 
   int sock_fd = fd();
@@ -49,19 +77,21 @@ int main(int argc, char **argv) {
     goto exit;
   }
 
-  Beep *beep = mk_beep(label, msg);
+  beep = mk_beep(label, msg);
   if (beep == NULL) {
     ret_val = 1;
     goto exit;
   }
-  char *request_buf = marshal(beep);
+  request_buf = marshal(beep);
   if (request_buf == NULL) {
     ret_val = 1;
     goto exit;
   }
 
-  int n = write(sock_fd, request_buf, buf_len(msg));
-  fprintf(stderr, "wrote %d bytes to socket\n", n);
+  // int n =
+  write(sock_fd, request_buf, buf_len(request_buf));
+  // fprintf(stderr, "wrote %d bytes to socket\n", n);
+  // buf_print(request_buf);
 
 exit:
   if (label != NULL) {

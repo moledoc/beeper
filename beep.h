@@ -173,21 +173,11 @@ int valid_version_buf(const beep_buf buf) {
 void buf_print(beep_buf buf) {
   assert(metadata_size == 3 && "printing buf needs extending");
 
-  int ver_major = buf[version_major_idx];
-  int ver_minor = buf[version_minor_idx];
-
-  int label_len = buf[msg_start_idx];
-  char label[label_len + 1];
-  memset(label, '\0', sizeof(label));
-  memcpy(label, buf + msg_start_idx + 1, label_len);
-
-  int msg_len = buf[msg_start_idx + label_len];
-  char msg[msg_len + 1];
-  memset(msg, '\0', sizeof(msg));
-  memcpy(msg, buf + msg_start_idx + label_len + 1, msg_len);
-
-  fprintf(stderr, "%d%d%d%s%d%s\n", ver_major, ver_minor, label_len, label,
-          msg_len, msg);
+  char *str = buf_to_str(buf);
+  fprintf(stderr, "%s\n", str);
+  if (str != NULL) {
+    free(str);
+  }
 }
 
 size_t buf_len(beep_buf buf) {
@@ -219,8 +209,8 @@ char *buf_to_str(const beep_buf buf) {
 
   size_t str_len = msg_start_idx + label_len + msg_len + 2;
   char *str = calloc(str_len, sizeof(char));
-  snprintf(str, str_len, "%d%d%d%s%d%s\n", ver_major, ver_minor, label_len,
-           label, msg_len, msg);
+  snprintf(str, str_len, "%d%d%d%s%d%s", ver_major, ver_minor, label_len, label,
+           msg_len, msg);
   return str;
 }
 
