@@ -25,6 +25,7 @@ int main(int argc, char **argv) {
   char *msg = NULL;
   char *request_buf = NULL;
   Beep *beep = NULL;
+  int sock_fd = -1;
   int ret_val = 0;
 
   for (int i = 1; i < argc; ++i) {
@@ -34,23 +35,17 @@ int main(int argc, char **argv) {
       return 0;
     } else if (strcmp("-q", argv[i]) == 0 || strcmp("--quit", argv[i]) == 0 ||
                strcmp("quit", argv[i]) == 0) {
-      label = calloc(1, sizeof(char));
-      strncpy(label, "q", 1 * sizeof(char));
-      msg = calloc(1, sizeof(char));
-      strncpy(msg, "q", 1 * sizeof(char));
+      label = "q";
+      msg = "q";
       break;
     } else if ((strcmp("-l", argv[i]) == 0 ||
                 strcmp("--label", argv[i]) == 0) &&
                i + 1 < argc) {
-      size_t label_len = strlen(argv[i + 1]);
-      label = calloc(label_len, sizeof(char));
-      memcpy(label, argv[i + 1], label_len);
+      label = strlen(argv[i + 1]) > 0 ? argv[i + 1] : "beep";
       ++i;
     } else if ((strcmp("-m", argv[i]) == 0 || strcmp("--msg", argv[i]) == 0) &&
                i + 1 < argc) {
-      size_t msg_len = strlen(argv[i + 1]);
-      msg = calloc(msg_len, sizeof(char));
-      memcpy(msg, argv[i + 1], msg_len);
+      msg = argv[i + 1];
       ++i;
     } else {
       fprintf(stderr, "invalid argument '%s' provided\n", argv[i]);
@@ -58,14 +53,18 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (strcmp("", label) == 0) {
-    label = "beep";
+  if (label == NULL || strlen(label) == 0) {
+    fprintf(stderr, "something unexpected happened with label flag\n");
+    ret_val = 1;
+    goto exit;
   }
-  if (strcmp("", msg) == 0) {
+  if (msg == NULL || strlen(msg) == 0) {
     fprintf(stderr, "empty message not allowed\n");
+    ret_val = 1;
+    goto exit;
   }
 
-  int sock_fd = fd();
+  sock_fd = fd();
   if (sock_fd == -1) {
     ret_val = 1;
     goto exit;
@@ -88,18 +87,9 @@ int main(int argc, char **argv) {
     goto exit;
   }
 
-  // int n =
   write(sock_fd, request_buf, buf_len(request_buf));
-  // fprintf(stderr, "wrote %d bytes to socket\n", n);
-  // buf_print(request_buf);
 
 exit:
-  if (label != NULL) {
-    free(label);
-  }
-  if (msg != NULL) {
-    free(msg);
-  }
   if (request_buf != NULL) {
     free(request_buf);
   }
