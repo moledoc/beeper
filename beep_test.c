@@ -33,8 +33,8 @@ beep_buf mk_expect(Case c) { // allocs memory
   size_t label_len = strlen(label);
   size_t msg_len = strlen(msg);
 
-  beep_buf buf = (beep_buf)calloc(metadata_size + label_len + 1 + msg_len + 1,
-                                  sizeof(char));
+  beep_buf buf = (beep_buf)calloc(
+      metadata_size + label_len + 1 + msg_len + 1 + 1, sizeof(char));
 
   buf[version_major_idx] = __version_major;
   buf[version_minor_idx] = __version_minor;
@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
   cases[13] = both_long;
 
   char *state = NULL;
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < 4; ++i) {
     char cmd[1024];
     memset(cmd, '\0', sizeof(cmd));
 
@@ -270,7 +270,7 @@ int main(int argc, char **argv) {
         fclose(fptr);
         return errno;
       }
-      snprintf(recomp_cmd, 128, "cc -o beep beep.c -DTESTING=%d", write_fd);
+      snprintf(recomp_cmd, 128, "cc -o beep beep.c -DTEST_OUT=%d", write_fd);
       if (system(recomp_cmd) == -1) {
         fprintf(stderr, "failed to execute %d-th case: %s\n", i,
                 strerror(errno));
@@ -315,6 +315,8 @@ int main(int argc, char **argv) {
 
       if (strcmp("", cases[i].quit) != 0) {
         snprintf(cmd, sizeof(cmd), "./beep %s", cases[i].quit);
+        cases[i].label = "q";
+        cases[i].msg = "q";
       } else {
         snprintf(cmd, sizeof(cmd), "./beep -l %s -m %s", cases[i].label,
                  cases[i].msg);
@@ -332,7 +334,6 @@ int main(int argc, char **argv) {
       bool b = status_code == cases[i].expected_status_code &&
                is_equal(expected, actual);
       state = b ? "PASS" : "FAIL";
-      fprintf(stderr, "-- %s: %s\n", state, cases[i].name);
       if (actual != NULL) {
         free(actual);
       }

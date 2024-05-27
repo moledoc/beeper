@@ -134,9 +134,9 @@ char *marshal(Beep *beep) {
       calloc(sizeof(Beep) + beep->label_len + beep->msg_len, sizeof(char));
   buf[version_major_idx] = beep->version_major;
   buf[version_minor_idx] = beep->version_minor;
-  buf[msg_start_idx] = beep->label_len + '0';
+  buf[msg_start_idx] = beep->label_len;
   strncpy(buf + msg_start_idx + 1, beep->label, beep->label_len);
-  buf[msg_start_idx + beep->label_len + 1] = beep->msg_len + '0';
+  buf[msg_start_idx + beep->label_len + 1] = beep->msg_len;
   strncpy(buf + msg_start_idx + 1 + beep->label_len + 1, beep->msg,
           beep->msg_len);
   return buf;
@@ -202,15 +202,16 @@ char *buf_to_str(const beep_buf buf) {
   memset(label, '\0', sizeof(label));
   memcpy(label, buf + msg_start_idx + 1, label_len);
 
-  int msg_len = buf[msg_start_idx + label_len];
+  int msg_len = buf[msg_start_idx + 1 + label_len];
   char msg[msg_len + 1];
   memset(msg, '\0', sizeof(msg));
-  memcpy(msg, buf + msg_start_idx + label_len + 1, msg_len);
+  memcpy(msg, buf + msg_start_idx + label_len + 2, msg_len);
 
   size_t str_len = msg_start_idx + label_len + msg_len + 2;
   char *str = calloc(str_len, sizeof(char));
-  snprintf(str, str_len, "%d%d%d%s%d%s", ver_major, ver_minor, label_len, label,
-           msg_len, msg);
+  snprintf(str, str_len + 1, "%d%d%d%s%d%s", ver_major, ver_minor, label_len,
+           label, msg_len, msg); // TODO: reason about +1
+
   return str;
 }
 

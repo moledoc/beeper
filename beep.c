@@ -12,8 +12,8 @@
 
 void help() {
   char *help_msg = "TODO:\n";
-#ifdef TESTING
-  write(TESTING, help_msg, strlen(help_msg));
+#ifdef TEST_OUT
+  write(TEST_OUT, help_msg, strlen(help_msg));
 #else
   fprintf(stdout, help_msg);
 #endif
