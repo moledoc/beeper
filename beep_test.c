@@ -12,8 +12,9 @@
 #define BEEP_IMPLEMENTATION
 #include "beep.h"
 
-typedef struct {
+typedef struct Case {
   char *name;
+  bool (*f)(struct Case *);
   char *help;
   char *quit;
   char *label;
@@ -25,13 +26,13 @@ const char *expected_help_str = "TODO:\n";
 
 int precond() { return system("cc -o beep beep.c"); }
 
-beep_buf mk_expect(Case c) { // allocs memory
+beep_buf mk_expect(Case *c) { // allocs memory
   assert(metadata_size == 3 && "extend expected result construction");
-  if (strcmp("", c.msg) == 0) {
+  if (strcmp("", c->msg) == 0) {
     return NULL;
   }
-  char *label = c.label;
-  char *msg = c.msg;
+  char *label = c->label;
+  char *msg = c->msg;
 
   size_t label_len = strlen(label);
   size_t msg_len = strlen(msg);
@@ -122,13 +123,168 @@ void *get_actual(void *_) {
     read(conn, actual, sizeof(actual));
     close(conn);
   }
-
 exit:
   close(sock_fd);
   return (void *)actual;
 }
 
+bool test_help_flag(Case *c) {
+
+  char *outfile = "/tmp/beep.c.test";
+  FILE *fptr = fopen(outfile, "w");
+  fclose(fptr);
+
+  fptr = fopen(outfile, "r+");
+  if (fptr == NULL) {
+    fprintf(stderr, "opening file for writing failed: %s\n", strerror(errno));
+    exit(1);
+  }
+  int read_fd = fileno(fptr);
+  int write_fd = dup(read_fd);
+
+  char *recomp_cmd = calloc(128, sizeof(char));
+  if (recomp_cmd == NULL) {
+    fprintf(stderr, "%s\n", strerror(errno));
+    fclose(fptr);
+    return errno;
+  }
+  snprintf(recomp_cmd, 128, "cc -o beep beep.c -DTEST_OUT=%d", write_fd);
+  if (system(recomp_cmd) == -1) {
+    fprintf(stderr, "failed to execute case '%s': %s\n", c->name,
+            strerror(errno));
+    fclose(fptr);
+    return 0;
+  }
+  free(recomp_cmd);
+
+  char cmd[64];
+  memset(cmd, '\0', sizeof(cmd));
+  snprintf(cmd, sizeof(cmd), "./beep %s", c->help);
+  int status_code = system(cmd);
+  if (status_code == -1) {
+    fprintf(stderr, "failed to execute case '%s': %s\n", c->name,
+            strerror(errno));
+    fclose(fptr);
+    return 0;
+  }
+
+  char *actual = NULL;
+  size_t actual_size = 1024;
+  actual = calloc(actual_size, sizeof(char));
+  lseek(read_fd, 0, SEEK_SET);
+  read(read_fd, actual, actual_size);
+  fclose(fptr);
+
+  bool result = status_code == c->expected_status_code &&
+                strcmp(expected_help_str, actual) == 0;
+  if (!result) {
+    fprintf(stderr,
+            "stderr difference:"
+            "\n\texpected\n\t\t- '%s'"
+            "\n\tactual\n\t\t- '%s'"
+            "\n",
+            expected_help_str, actual);
+  }
+  if (actual != NULL) {
+    free(actual);
+  }
+  return result;
+}
+
+bool test_quit_flag(Case *c) {
+  pthread_t thread;
+  pthread_create(&thread, NULL, get_actual, NULL);
+
+  char cmd[64];
+  memset(cmd, '\0', sizeof(cmd));
+  snprintf(cmd, sizeof(cmd), "./beep %s", c->quit);
+  c->label = "q";
+  c->msg = "q";
+  int status_code = system(cmd);
+  if (status_code == -1) {
+    fprintf(stderr, "failed to execute case '%s': %s\n", c->name,
+            strerror(errno));
+    return 0;
+  }
+
+  beep_buf actual = NULL;
+  pthread_join(thread, (void **)&actual);
+  beep_buf expected = mk_expect(c);
+  bool result =
+      status_code == c->expected_status_code && is_equal(expected, actual);
+  if (actual != NULL) {
+    free(actual);
+  }
+  return result;
+}
+
+Case **def_cases(int n) {
+  Case **cases = calloc(n, sizeof(Case *));
+
+  // help flag cases
+  Case *c0 = calloc(1, sizeof(Case));
+  c0->name = "help_short";
+  c0->f = test_help_flag;
+  c0->help = "-h";
+  c0->expected_status_code = 0;
+  cases[0] = c0;
+
+  Case *c1 = calloc(1, sizeof(Case));
+  c1->name = "help_long";
+  c1->f = test_help_flag;
+  c1->help = "--help";
+  c1->expected_status_code = 0;
+  cases[1] = c1;
+
+  Case *c2 = calloc(1, sizeof(Case));
+  c2->name = "help_help";
+  c2->f = test_help_flag;
+  c2->help = "help";
+  c2->expected_status_code = 0;
+  cases[2] = c2;
+
+  // quit flag cases
+  Case *c3 = calloc(1, sizeof(Case));
+  c3->name = "quit_short";
+  c3->f = test_quit_flag;
+  c3->quit = "-q";
+  c3->expected_status_code = 0;
+  cases[3] = c3;
+
+  Case *c4 = calloc(1, sizeof(Case));
+  c4->name = "quit_long";
+  c4->f = test_quit_flag;
+  c4->quit = "--quit";
+  c4->expected_status_code = 0;
+  cases[4] = c4;
+
+  Case *c5 = calloc(1, sizeof(Case));
+  c5->name = "quit_quit";
+  c5->f = test_quit_flag;
+  c5->quit = "quit";
+  c5->expected_status_code = 0;
+  cases[5] = c5;
+
+  return cases;
+}
+
 int main(int argc, char **argv) {
+  if (precond() == -1) {
+    fprintf(stderr, "beep.c testing precondition failed\n");
+    fprintf(stderr, "%s\n", strerror(errno));
+    return 1;
+  }
+
+  int n = 5;
+  Case **cases = def_cases(n);
+  for (int i = 0; i < n; ++i) {
+    int result = cases[i]->f(cases[i]);
+    char *state = result ? "PASS" : "FAIL";
+    fprintf(stderr, "-- %s: %s\n", state, cases[i]->name);
+  }
+}
+
+int main2(int argc, char **argv) {
   if (precond() == -1) {
     fprintf(stderr, "beep.c testing precondition failed\n");
     fprintf(stderr, "%s\n", strerror(errno));
@@ -257,64 +413,6 @@ int main(int argc, char **argv) {
     memset(cmd, '\0', sizeof(cmd));
 
     if (strcmp("", cases[i].help) != 0) {
-      char *outfile = "/tmp/beep.c.test";
-      FILE *fptr = fopen(outfile, "w");
-      fclose(fptr);
-
-      fptr = fopen(outfile, "r+");
-      if (fptr == NULL) {
-        fprintf(stderr, "opening file for writing failed: %s\n",
-                strerror(errno));
-        exit(1);
-      }
-      int read_fd = fileno(fptr);
-      int write_fd = dup(read_fd);
-
-      char *recomp_cmd = calloc(128, sizeof(char));
-      if (recomp_cmd == NULL) {
-        fprintf(stderr, "%s\n", strerror(errno));
-        fclose(fptr);
-        return errno;
-      }
-      snprintf(recomp_cmd, 128, "cc -o beep beep.c -DTEST_OUT=%d", write_fd);
-      if (system(recomp_cmd) == -1) {
-        fprintf(stderr, "failed to execute %d-th case: %s\n", i,
-                strerror(errno));
-        fclose(fptr);
-        return 1;
-      }
-      free(recomp_cmd);
-
-      snprintf(cmd, sizeof(cmd), "./beep %s", cases[i].help);
-      int status_code = system(cmd);
-      if (status_code == -1) {
-        fprintf(stderr, "failed to execute %d-th case: %s\n", i,
-                strerror(errno));
-        fclose(fptr);
-        return 1;
-      }
-
-      char *actual = NULL;
-      size_t actual_size = 1024;
-      actual = calloc(actual_size, sizeof(char));
-      lseek(read_fd, 0, SEEK_SET);
-      read(read_fd, actual, actual_size);
-      fclose(fptr);
-
-      bool b = status_code == cases[i].expected_status_code &&
-               strcmp(expected_help_str, actual) == 0;
-      state = b ? "PASS" : "FAIL";
-      if (!b) {
-        fprintf(stderr,
-                "stderr difference:"
-                "\n\texpected\n\t\t- '%s'"
-                "\n\tactual\n\t\t- '%s'"
-                "\n",
-                expected_help_str, actual);
-      }
-      if (actual != NULL) {
-        free(actual);
-      }
     } else {
       pthread_t thread;
       pthread_create(&thread, NULL, get_actual, NULL);
@@ -343,7 +441,7 @@ int main(int argc, char **argv) {
       beep_buf actual = NULL;
       pthread_join(thread, (void **)&actual);
     skip_actual:
-      beep_buf expected = mk_expect(cases[i]);
+      beep_buf expected = mk_expect(&cases[i]);
       bool b = status_code == cases[i].expected_status_code &&
                is_equal(expected, actual);
       state = b ? "PASS" : "FAIL";
@@ -351,6 +449,7 @@ int main(int argc, char **argv) {
         free(actual);
       }
     }
+    //     state = b ? "PASS" : "FAIL";
     fprintf(stderr, "-- %s: %s\n", state, cases[i].name);
   }
 }
