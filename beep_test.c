@@ -26,9 +26,12 @@ const char *expected_help_str = "TODO:\n";
 int precond() { return system("cc -o beep beep.c"); }
 
 beep_buf mk_expect(Case c) { // allocs memory
+  assert(metadata_size == 3 && "extend expected result construction");
+  if (strcmp("", c.msg) == 0) {
+    return NULL;
+  }
   char *label = c.label;
   char *msg = c.msg;
-  assert(metadata_size == 3 && "extend expected result construction");
 
   size_t label_len = strlen(label);
   size_t msg_len = strlen(msg);
@@ -66,6 +69,9 @@ void base_error_msg(beep_buf expected, beep_buf actual) {
 }
 
 int is_equal(beep_buf expected, beep_buf actual) {
+  if (expected == NULL) {
+    return 1;
+  }
   int ret_val = 1;
   size_t expected_len = buf_len(expected);
   size_t actual_len = buf_len(actual);
@@ -246,7 +252,7 @@ int main(int argc, char **argv) {
   cases[13] = both_long;
 
   char *state = NULL;
-  for (int i = 0; i < 6; ++i) {
+  for (int i = 0; i < 7; ++i) {
     char cmd[1024];
     memset(cmd, '\0', sizeof(cmd));
 
@@ -327,9 +333,16 @@ int main(int argc, char **argv) {
                 strerror(errno));
         return 1;
       }
+      if (strcmp("", cases[i].label) == 0) {
+        cases[i].label = "default";
+      }
+      if (strcmp("", cases[i].msg) == 0) {
+        goto skip_actual;
+      }
 
       beep_buf actual = NULL;
       pthread_join(thread, (void **)&actual);
+    skip_actual:
       beep_buf expected = mk_expect(cases[i]);
       bool b = status_code == cases[i].expected_status_code &&
                is_equal(expected, actual);
