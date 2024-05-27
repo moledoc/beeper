@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
   cases[13] = both_long;
 
   char *state = NULL;
-  for (int i = 0; i < 4; ++i) {
+  for (int i = 0; i < 6; ++i) {
     char cmd[1024];
     memset(cmd, '\0', sizeof(cmd));
 
